@@ -27,7 +27,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
-import { SAMPLE_FLEET } from "@/lib/mock-data";
 import { Branch } from "@/lib/api/branches";
 import { Vehicle, VehicleCategory } from "@/types";
 import { useBranding } from "@/lib/context/branding";
@@ -48,7 +47,7 @@ export default function PublicFleetPage() {
   const { data: apiBranches, isLoading: isBranchesLoading } = useBranchesQuery();
 
   const vehicles = useMemo(() => {
-    return apiVehicles && apiVehicles.length > 0 ? apiVehicles : SAMPLE_FLEET;
+    return apiVehicles ?? [];
   }, [apiVehicles]);
 
   const branches = apiBranches || [];

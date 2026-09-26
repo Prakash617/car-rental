@@ -4,7 +4,8 @@ import { headers } from "next/headers";
 import { Car, Sparkles, ArrowRight, ShieldCheck, DollarSign } from "lucide-react";
 import { resolveTenant } from "@/lib/tenant/resolver";
 import { getThemeDefinition } from "@/lib/themes/registry";
-import { SAMPLE_FLEET } from "@/lib/mock-data";
+import { fetchVehicles } from "@/lib/api/vehicles";
+import { Vehicle } from "@/types";
 import { Navbar } from "@/components/navigation/Navbar";
 import { ThemePreviewBanner } from "@/components/themes/ThemePreviewBanner";
 import { FAQSection } from "@/components/storefront/FAQSection";
@@ -53,6 +54,14 @@ export default async function HomePage({ searchParams }: PageProps) {
     faqs = await getPublicFAQs(host);
   } catch {
     // FAQs are optional
+  }
+
+  // Fetch live vehicles for this tenant schema
+  let vehicles: Vehicle[] = [];
+  try {
+    vehicles = await fetchVehicles(undefined, host);
+  } catch {
+    vehicles = [];
   }
 
   return (
@@ -141,7 +150,7 @@ export default async function HomePage({ searchParams }: PageProps) {
 
       {/* Dynamic Theme Fleet Catalog */}
       <div id="fleet">
-        <FleetGrid vehicles={SAMPLE_FLEET} branding={branding} />
+        <FleetGrid vehicles={vehicles} branding={branding} />
       </div>
 
       {/* FAQ Section — live from CMS */}

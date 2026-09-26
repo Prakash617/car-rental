@@ -79,17 +79,23 @@ export function ClassicFleetGrid({
         {!isLoading && filteredVehicles.length === 0 && (
           <div className="text-center py-20 px-4 rounded-2xl bg-[#1c1813]/60 border border-[#2e261e] space-y-4">
             <Compass className="w-10 h-10 text-[#c9955e] mx-auto" />
-            <h3 className="text-xl font-serif text-[#f5f1eb]">No Vehicles in this Category Currently</h3>
+            <h3 className="text-xl font-serif text-[#f5f1eb]">
+              {vehicles.length === 0 ? "No Vehicles in Stable" : "No Vehicles in this Category Currently"}
+            </h3>
             <p className="text-sm text-[#8f8475] max-w-sm mx-auto font-light">
-              Our curators frequently acquire and rotate iconic classic automobiles.
+              {vehicles.length === 0
+                ? "This stable currently has no vehicles listed. Check back soon for newly acquired classic automobiles."
+                : "Our curators frequently acquire and rotate iconic classic automobiles."}
             </p>
-            <button
-              onClick={() => handleCategoryClick("all")}
-              className="mt-2 px-5 py-2.5 rounded-xl bg-[#8B5A2B] text-stone-100 text-xs font-serif uppercase tracking-wider hover:bg-[#a06933] transition-colors flex items-center gap-2 mx-auto"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Show Full Stable</span>
-            </button>
+            {vehicles.length > 0 && (
+              <button
+                onClick={() => handleCategoryClick("all")}
+                className="mt-2 px-5 py-2.5 rounded-xl bg-[#8B5A2B] text-stone-100 text-xs font-serif uppercase tracking-wider hover:bg-[#a06933] transition-colors flex items-center gap-2 mx-auto"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Show Full Stable</span>
+              </button>
+            )}
           </div>
         )}
 

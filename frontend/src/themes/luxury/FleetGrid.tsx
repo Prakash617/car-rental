@@ -81,16 +81,22 @@ export function LuxuryFleetGrid({
         {!isLoading && filteredVehicles.length === 0 && (
           <div className="text-center py-20 px-4 rounded-2xl bg-[#12141F]/40 border border-white/[0.04] space-y-4">
             <SlidersHorizontal className="w-10 h-10 text-[#D4AF37] mx-auto stroke-1" />
-            <h3 className="text-xl font-serif text-slate-200">No Vehicles Match Your Selection</h3>
+            <h3 className="text-xl font-serif text-slate-200">
+              {vehicles.length === 0 ? "No Vehicles in Fleet Catalog" : "No Vehicles Match Your Selection"}
+            </h3>
             <p className="text-sm text-slate-400 max-w-md mx-auto">
-              Our bespoke concierge team can source custom luxury models upon private request.
+              {vehicles.length === 0
+                ? "This fleet catalog currently has no vehicles listed. Check back soon or contact concierge."
+                : "Our bespoke concierge team can source custom luxury models upon private request."}
             </p>
-            <button
-              onClick={() => handleCategoryClick("all")}
-              className="mt-2 px-6 py-2.5 rounded-xl border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-semibold uppercase tracking-wider hover:bg-[#D4AF37]/10 transition-colors"
-            >
-              Reset Category Filter
-            </button>
+            {vehicles.length > 0 && (
+              <button
+                onClick={() => handleCategoryClick("all")}
+                className="mt-2 px-6 py-2.5 rounded-xl border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-semibold uppercase tracking-wider hover:bg-[#D4AF37]/10 transition-colors"
+              >
+                Reset Category Filter
+              </button>
+            )}
           </div>
         )}
 
