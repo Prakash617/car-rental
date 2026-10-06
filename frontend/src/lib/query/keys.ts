@@ -28,5 +28,6 @@ export const queryKeys = {
   },
   website: {
     config: () => ["website", "config"] as const,
+    pages: () => ["website", "pages"] as const,
   },
 };

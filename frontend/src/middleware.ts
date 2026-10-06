@@ -13,7 +13,6 @@ export function middleware(request: NextRequest) {
     (pathname.startsWith("/dashboard") || pathname === "/login" || pathname === "/onboard") &&
     cleanHost.endsWith(".localhost") &&
     cleanHost !== "localhost" &&
-    cleanHost !== "platform.localhost" &&
     cleanHost !== "admin.localhost"
   ) {
     const targetUrl = new URL(pathname, "http://localhost:3000");
@@ -46,9 +45,24 @@ export function middleware(request: NextRequest) {
     });
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // Persist the active tenant in a cookie so server layouts/pages (which cannot
+  // read search params) keep rendering the correct tenant storefront.
+  const tenantParam = request.nextUrl.searchParams.get("tenant");
+  if (tenantParam) {
+    response.cookies.set("tenant_ctx", tenantParam.replace(/:\d+$/, ""), {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 12,
+    });
+  } else if (request.nextUrl.searchParams.has("tenant")) {
+    response.cookies.delete("tenant_ctx");
+  }
+
+  return response;
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/dashboard", "/login", "/onboard"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

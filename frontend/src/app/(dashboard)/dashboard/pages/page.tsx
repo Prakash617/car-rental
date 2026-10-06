@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   FileText,
   Plus,
@@ -28,6 +29,16 @@ import {
   deleteCustomPage,
 } from "@/lib/api/dashboard";
 
+const WysiwygEditor = dynamic(() => import("@/components/dashboard/WysiwygEditor"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 rounded-xl border border-white/[0.08] bg-zinc-950/50 flex items-center justify-center text-xs text-zinc-500 font-mono">
+      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+      Loading WYSIWYG Editor...
+    </div>
+  ),
+});
+
 interface PageFormState extends CustomPage {
   isExpanded: boolean;
   isSaving: boolean;
@@ -37,6 +48,8 @@ interface PageFormState extends CustomPage {
   _slug: string;
   _content: string;
   _is_published: boolean;
+  _show_in_navbar: boolean;
+  _show_in_footer: boolean;
   _seo_title: string;
   _seo_description: string;
 }
@@ -50,6 +63,8 @@ function pageToFormState(page: CustomPage, expanded = false): PageFormState {
     _slug: page.slug,
     _content: page.content,
     _is_published: page.is_published,
+    _show_in_navbar: page.show_in_navbar,
+    _show_in_footer: page.show_in_footer,
     _seo_title: page.seo_title,
     _seo_description: page.seo_description,
   };
@@ -65,7 +80,7 @@ function slugify(text: string): string {
 }
 
 export default function PagesManagerPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const [pages, setPages] = useState<PageFormState[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [globalFeedback, setGlobalFeedback] = useState<{
@@ -106,6 +121,8 @@ export default function PagesManagerPage() {
       slug: "",
       content: "",
       is_published: false,
+      show_in_navbar: false,
+      show_in_footer: false,
       seo_title: "",
       seo_description: "",
       created_at: new Date().toISOString(),
@@ -117,6 +134,8 @@ export default function PagesManagerPage() {
       _slug: "",
       _content: "",
       _is_published: false,
+      _show_in_navbar: false,
+      _show_in_footer: false,
       _seo_title: "",
       _seo_description: "",
     };
@@ -136,6 +155,8 @@ export default function PagesManagerPage() {
       slug: page._slug,
       content: page._content,
       is_published: page._is_published,
+      show_in_navbar: page._show_in_navbar,
+      show_in_footer: page._show_in_footer,
       seo_title: page._seo_title,
       seo_description: page._seo_description,
     };
@@ -304,10 +325,26 @@ export default function PagesManagerPage() {
                     {page.is_published ? "Published" : "Draft"}
                   </span>
 
+                  {/* Placement badges */}
+                  {page._show_in_navbar && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border bg-blue-500/10 border-blue-500/30 text-blue-400">
+                      NAV
+                    </span>
+                  )}
+                  {page._show_in_footer && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border bg-violet-500/10 border-violet-500/30 text-violet-400">
+                      FOOTER
+                    </span>
+                  )}
+
                   {/* View if published */}
                   {page.is_published && page._slug && (
                     <a
-                      href={`/pages/${page._slug}`}
+                      href={
+                        tenantDomain
+                          ? `/pages/${page._slug}?tenant=${encodeURIComponent(tenantDomain)}`
+                          : `/pages/${page._slug}`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
@@ -400,18 +437,12 @@ export default function PagesManagerPage() {
                   <div>
                     <label className="text-xs font-medium text-zinc-300 block mb-1.5">
                       Page Content{" "}
-                      <span className="text-zinc-600 font-normal">(Markdown supported)</span>
+                      <span className="text-zinc-500 font-normal">(WYSIWYG & Markdown supported)</span>
                     </label>
-                    <textarea
+                    <WysiwygEditor
                       value={page._content}
-                      onChange={(e) => updateField(idx, "_content", e.target.value)}
-                      placeholder={`# Page Title\n\nWrite your page content here. **Bold**, *italic*, and [links](https://example.com) are supported.\n\n## Section Heading\n\nParagraph text...`}
-                      rows={12}
-                      className="w-full rounded-md border border-white/[0.08] bg-black/40 px-3 py-2 text-sm text-zinc-300 placeholder:text-zinc-700 focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30 resize-y font-mono leading-relaxed"
+                      onChange={(content) => updateField(idx, "_content", content)}
                     />
-                    <p className="text-[11px] text-zinc-600 mt-1">
-                      {page._content.length.toLocaleString()} characters
-                    </p>
                   </div>
 
                   {/* SEO Overrides */}
@@ -440,24 +471,51 @@ export default function PagesManagerPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={page._is_published}
-                        onChange={(e) => updateField(idx, "_is_published", e.target.checked)}
-                        className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 accent-primary"
-                      />
-                      <span className="text-xs font-medium text-zinc-300">
-                        Publish on storefront
-                      </span>
-                    </label>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-2.5">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={page._is_published}
+                          onChange={(e) => updateField(idx, "_is_published", e.target.checked)}
+                          className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 accent-primary"
+                        />
+                        <span className="text-xs font-medium text-zinc-300">
+                          Publish on storefront
+                        </span>
+                      </label>
+
+                      {/* Placement choices */}
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={page._show_in_navbar}
+                            onChange={(e) => updateField(idx, "_show_in_navbar", e.target.checked)}
+                            className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 accent-primary"
+                          />
+                          <span className="text-xs font-medium text-zinc-300">Show in navbar</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={page._show_in_footer}
+                            onChange={(e) => updateField(idx, "_show_in_footer", e.target.checked)}
+                            className="h-4 w-4 rounded border-zinc-600 bg-zinc-800 accent-primary"
+                          />
+                          <span className="text-xs font-medium text-zinc-300">Show in footer</span>
+                        </label>
+                        <span className="text-[11px] text-zinc-600">
+                          Links appear only while the page is published
+                        </span>
+                      </div>
+                    </div>
 
                     <Button
                       onClick={() => handleSave(idx)}
                       disabled={page.isSaving}
                       size="sm"
-                      className="bg-primary text-black font-semibold hover:bg-primary/90"
+                      className="bg-primary text-black font-semibold hover:bg-primary/90 self-end"
                     >
                       {page.isSaving ? (
                         <span className="flex items-center gap-1.5">

@@ -1,13 +1,13 @@
 import React from "react";
 import Link from "next/link";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { resolveTenant } from "@/lib/tenant/resolver";
+import { getRequestTenantHost } from "@/lib/tenant/request";
 import { getCustomPageBySlug } from "@/lib/api/dashboard";
-import { TenantBranding } from "@/types";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ tenant?: string | string[] | undefined }>;
 }
 
 const DEFAULT_CMS_PAGES: Record<string, { title: string; content: string; seo_title?: string; seo_description?: string }> = {
@@ -90,9 +90,12 @@ Questions? Contact our 24/7 concierge desk at concierge@apex-fleet.com.`,
   },
 };
 
-async function fetchPage(slug: string): Promise<import("@/lib/api/dashboard").CustomPage | null> {
+async function fetchPage(
+  slug: string,
+  tenantHost?: string
+): Promise<import("@/lib/api/dashboard").CustomPage | null> {
   try {
-    const fromApi = await getCustomPageBySlug(slug);
+    const fromApi = await getCustomPageBySlug(slug, tenantHost);
     if (fromApi) return fromApi;
   } catch {
     // fallback below
@@ -106,6 +109,8 @@ async function fetchPage(slug: string): Promise<import("@/lib/api/dashboard").Cu
       title: def.title,
       content: def.content,
       is_published: true,
+      show_in_navbar: false,
+      show_in_footer: false,
       seo_title: def.seo_title || def.title,
       seo_description: def.seo_description || "",
       created_at: new Date().toISOString(),
@@ -116,17 +121,24 @@ async function fetchPage(slug: string): Promise<import("@/lib/api/dashboard").Cu
   return null;
 }
 
-/** Render simple Markdown-like content as HTML */
+/** Render Markdown-like content as HTML */
 function renderMarkdown(content: string): string {
+  if (!content) return "";
   return content
     // Headers
     .replace(/^### (.+)$/gm, "<h3>$1</h3>")
     .replace(/^## (.+)$/gm, "<h2>$1</h2>")
     .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    // Blockquote
+    .replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>")
     // Bold
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     // Italic
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    // Strikethrough
+    .replace(/~~(.+?)~~/g, "<del>$1</del>")
+    // Inline code
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
     // Links
     .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="underline">$1</a>')
     // Unordered list items
@@ -141,14 +153,16 @@ function renderMarkdown(content: string): string {
     .replace(/\n/g, "<br />");
 }
 
-export default async function CustomPageRoute({ params }: PageProps) {
+export default async function CustomPageRoute({ params, searchParams }: PageProps) {
   const { slug } = await params;
-  const headerList = await headers();
-  const host = headerList.get("host") || "localhost:3000";
+  const sp = await searchParams;
+  const tenantHost = await getRequestTenantHost(
+    typeof sp.tenant === "string" ? sp.tenant : null
+  );
 
   const [page, { branding }] = await Promise.all([
-    fetchPage(slug),
-    resolveTenant(host, null),
+    fetchPage(slug, tenantHost),
+    resolveTenant(tenantHost, null),
   ]);
 
   if (!page) {
@@ -160,45 +174,59 @@ export default async function CustomPageRoute({ params }: PageProps) {
 
   const renderedHtml = renderMarkdown(page.content);
 
+  const isLightMode =
+    branding.active_theme === "sajilo" ||
+    branding.active_theme === "modern" ||
+    branding.active_theme === "minimal" ||
+    branding.active_theme === "classic";
+
   return (
-    <div className="py-12 pb-20 px-4">
+    <div className={`py-12 pb-20 px-4 ${isLightMode ? "bg-[#f8fafc] text-slate-900" : ""}`}>
       <div className="max-w-3xl mx-auto">
         {/* Page breadcrumb */}
-        <nav className="mb-8 text-xs text-zinc-500 font-mono">
-          <Link href="/" className="hover:text-zinc-300 transition-colors">
+        <nav className={`mb-8 text-xs ${isLightMode ? "text-slate-500" : "text-zinc-500 font-mono"}`}>
+          <Link href="/" className={`transition-colors ${isLightMode ? "hover:text-slate-900" : "hover:text-zinc-300"}`}>
             Home
           </Link>
-          <span className="mx-2 text-zinc-700">/</span>
-          <span className="text-zinc-400">{page.title}</span>
+          <span className={`mx-2 ${isLightMode ? "text-slate-400" : "text-zinc-700"}`}>/</span>
+          <span className={isLightMode ? "text-slate-800 font-medium" : "text-zinc-400"}>{page.title}</span>
         </nav>
 
         {/* Page content */}
         <article
-          className="prose prose-invert prose-sm sm:prose-base max-w-none"
+          className={`max-w-none ${
+            isLightMode ? "prose prose-slate prose-sm sm:prose-base" : "prose prose-invert prose-sm sm:prose-base"
+          }`}
           style={
             {
-              "--tw-prose-headings": "#ffffff",
-              "--tw-prose-body": "#a1a1aa",
-              "--tw-prose-bold": "#ffffff",
-              "--tw-prose-links": branding.primary_color || "#D4AF37",
-              "--tw-prose-hr": "rgba(255,255,255,0.06)",
-              "--tw-prose-bullets": branding.primary_color || "#D4AF37",
+              "--tw-prose-headings": isLightMode ? "#0f172a" : "#ffffff",
+              "--tw-prose-body": isLightMode ? "#334155" : "#a1a1aa",
+              "--tw-prose-bold": isLightMode ? "#0f172a" : "#ffffff",
+              "--tw-prose-links": branding.primary_color || (isLightMode ? "#e11d2e" : "#D4AF37"),
+              "--tw-prose-hr": isLightMode ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.06)",
+              "--tw-prose-bullets": branding.primary_color || (isLightMode ? "#e11d2e" : "#D4AF37"),
             } as React.CSSProperties
           }
         >
-          <h1 className="text-3xl font-bold tracking-tight text-white mb-8">{seoTitle}</h1>
+          <h1 className={`text-3xl font-bold tracking-tight mb-8 ${isLightMode ? "text-slate-900" : "text-white"}`}>
+            {seoTitle}
+          </h1>
           <div
-            className="text-zinc-400 leading-relaxed space-y-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-white [&_h1]:mt-8 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mt-6 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-zinc-200 [&_h3]:mt-4 [&_strong]:text-white [&_li]:ml-4 [&_li]:list-disc [&_a]:text-primary [&_a]:no-underline [&_a:hover]:underline [&_hr]:border-white/[0.08] [&_hr]:my-8"
+            className={`leading-relaxed space-y-4 ${
+              isLightMode
+                ? "text-slate-700 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-slate-900 [&_h1]:mt-8 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-slate-900 [&_h2]:mt-6 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-slate-800 [&_h3]:mt-4 [&_strong]:text-slate-900 [&_li]:ml-4 [&_li]:list-disc [&_a]:text-[#e11d2e] [&_a]:no-underline [&_a:hover]:underline [&_hr]:border-slate-200 [&_hr]:my-8"
+                : "text-zinc-400 [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:text-white [&_h1]:mt-8 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-white [&_h2]:mt-6 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-zinc-200 [&_h3]:mt-4 [&_strong]:text-white [&_li]:ml-4 [&_li]:list-disc [&_a]:text-primary [&_a]:no-underline [&_a:hover]:underline [&_hr]:border-white/[0.08] [&_hr]:my-8"
+            }`}
             dangerouslySetInnerHTML={{ __html: `<p>${renderedHtml}</p>` }}
           />
         </article>
 
         {/* Metadata footer */}
-        <div className="mt-16 pt-8 border-t border-white/[0.06] text-xs text-zinc-600">
+        <div className={`mt-16 pt-8 border-t text-xs ${isLightMode ? "border-slate-200 text-slate-500" : "border-white/[0.06] text-zinc-600"}`}>
           <p>
-            {seoDesc && <span className="block mb-2 text-zinc-500 italic">{seoDesc}</span>}
-            <span className="font-mono">
-              {branding.name || "Apex Luxury Concierge"} · {new Date().getFullYear()}
+            {seoDesc && <span className={`block mb-2 italic ${isLightMode ? "text-slate-500" : "text-zinc-500"}`}>{seoDesc}</span>}
+            <span className={isLightMode ? "font-sans" : "font-mono"}>
+              {branding.name || "Apex Rentals"} &bull; {new Date().getFullYear()}
             </span>
           </p>
         </div>
@@ -207,9 +235,13 @@ export default async function CustomPageRoute({ params }: PageProps) {
   );
 }
 
-export async function generateMetadata({ params }: PageProps) {
+export async function generateMetadata({ params, searchParams }: PageProps) {
   const { slug } = await params;
-  const page = await fetchPage(slug);
+  const sp = await searchParams;
+  const tenantHost = await getRequestTenantHost(
+    typeof sp.tenant === "string" ? sp.tenant : null
+  );
+  const page = await fetchPage(slug, tenantHost);
 
   if (!page) {
     return { title: "Page Not Found" };

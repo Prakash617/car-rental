@@ -10,8 +10,10 @@ import {
   Check,
   RefreshCw,
   AlertCircle,
-  ArrowRight,
+  KeyRound,
   ShieldCheck,
+  UserCheck,
+  Car,
 } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { loginUser } from "@/lib/api/dashboard";
@@ -25,28 +27,32 @@ function LoginPageContent() {
   const initialMode = searchParams.get("mode") === "create" ? "create" : "login";
 
   const [mode, setMode] = useState<"login" | "create">(initialMode);
+  const [authMethod, setAuthMethod] = useState<"otp" | "password">("otp");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   // OTP State
   const [otpSent, setOtpSent] = useState(false);
   const [otpDigits, setOtpDigits] = useState<string[]>(["", "", "", "", "", ""]);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isLoggingInPassword, setIsLoggingInPassword] = useState(false);
   const otpInputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
   // Focus first input box when OTP is triggered
   useEffect(() => {
-    if (otpSent) {
+    if (otpSent && authMethod === "otp") {
       setTimeout(() => {
         otpInputsRef.current[0]?.focus();
       }, 100);
     }
-  }, [otpSent]);
+  }, [otpSent, authMethod]);
 
   const handleGoogleLogin = () => {
     toast.info("Google Sign-In is coming soon", {
-      description: "Google OAuth integration will be available shortly. Please proceed with Email OTP.",
+      description: "Google OAuth integration will be available shortly. Please proceed with Email OTP or Password.",
     });
   };
 
@@ -120,7 +126,7 @@ function LoginPageContent() {
       if (code === TEST_OTP_PIN) {
         const cleanEmail = email.trim().toLowerCase();
 
-        // 1. First, attempt to sign in to existing tenant with verified OTP
+        // 1. First, attempt to sign in to existing user account with verified OTP
         try {
           const session = await loginUser(cleanEmail, undefined, "localhost", code);
           if (session && session.access_token) {
@@ -129,15 +135,25 @@ function LoginPageContent() {
             toast.success("Welcome back!", {
               description: "Redirecting to your dashboard...",
             });
-            // Stay on the same host (e.g. http://localhost:3000/dashboard)
-            window.location.href = "/dashboard";
+            // Redirect directly to dashboard without showing car rental form
+            window.location.href = session.redirect_url || "/dashboard";
             return;
           }
-        } catch (err) {
-          // User has not yet provisioned a tenant workspace -> proceed to onboarding
+        } catch (err: unknown) {
+          // If in login mode, don't silently push to car rental form if account is not found
+          if (mode === "login") {
+            setIsVerifying(false);
+            const msg = err instanceof Error ? err.message : "Authentication failed.";
+            setOtpError(
+              msg.includes("No registered user")
+                ? "No user account was found with this email. Click 'Create Rental' to set up a new portal."
+                : msg
+            );
+            return;
+          }
         }
 
-        // 2. If no existing account/tenant found, guide user to /onboard to create their rental portal
+        // 2. Only if explicitly in create mode or fresh onboarding, guide user to /onboard
         setIsVerifying(false);
         toast.success("Email verified!", {
           description: "Let's create your new car rental portal!",
@@ -148,6 +164,68 @@ function LoginPageContent() {
         setOtpError(`Invalid code. For testing, please enter ${TEST_OTP_PIN}`);
       }
     }, 400);
+  };
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+      setPasswordError("Please enter a valid email address.");
+      return;
+    }
+    if (!password) {
+      setPasswordError("Please enter your password.");
+      return;
+    }
+
+    setIsLoggingInPassword(true);
+    try {
+      const session = await loginUser(cleanEmail, password, "localhost");
+      if (session && session.access_token) {
+        saveStoredSession(session);
+        toast.success("Welcome back!", {
+          description: "Redirecting to your dashboard...",
+        });
+        window.location.href = session.redirect_url || "/dashboard";
+        return;
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Invalid email or password.";
+      setPasswordError(msg);
+    } finally {
+      setIsLoggingInPassword(false);
+    }
+  };
+
+  const quickLoginAs = async (demoEmail: string, demoPinOrPass: string, isPin: boolean) => {
+    setEmail(demoEmail);
+    if (isPin) {
+      setAuthMethod("otp");
+      setOtpSent(true);
+      setOtpDigits(demoPinOrPass.split(""));
+      verifyOtp(demoPinOrPass);
+    } else {
+      setAuthMethod("password");
+      setPassword(demoPinOrPass);
+      setIsLoggingInPassword(true);
+      try {
+        const session = await loginUser(demoEmail, demoPinOrPass, "localhost");
+        if (session && session.access_token) {
+          saveStoredSession(session);
+          toast.success("Welcome back!", {
+            description: "Redirecting to your dashboard...",
+          });
+          window.location.href = session.redirect_url || "/dashboard";
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Sign in failed.";
+        setPasswordError(msg);
+      } finally {
+        setIsLoggingInPassword(false);
+      }
+    }
   };
 
   return (
@@ -185,8 +263,11 @@ function LoginPageContent() {
           <button
             type="button"
             onClick={() => {
-              setMode(mode === "login" ? "create" : "login");
+              const nextMode = mode === "login" ? "create" : "login";
+              setMode(nextMode);
               setOtpSent(false);
+              setEmailError(null);
+              setPasswordError(null);
             }}
             className="text-xs font-semibold text-white px-3.5 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-md shadow-purple-600/25 transition-all cursor-pointer"
           >
@@ -198,9 +279,38 @@ function LoginPageContent() {
       {/* Main Content Area */}
       <main className="flex-1 flex items-center justify-center px-4 py-12 relative z-10">
         <div className="w-full max-w-[440px] bg-zinc-950/80 border border-white/[0.1] rounded-[20px] p-8 sm:p-9 shadow-2xl backdrop-blur-2xl">
+          {mode === "login" && !otpSent && (
+            <div className="flex items-center gap-1.5 p-1 bg-white/[0.04] border border-white/[0.08] rounded-xl mb-6">
+              <button
+                type="button"
+                onClick={() => setAuthMethod("otp")}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  authMethod === "otp"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>Email OTP</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMethod("password")}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                  authMethod === "password"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Password</span>
+              </button>
+            </div>
+          )}
+
           {!otpSent ? (
             /* ============================================================= */
-            /* STEP 1: Email & Google Login Screen                           */
+            /* STEP 1: Login / Get Started Form                              */
             /* ============================================================= */
             <div className="space-y-6">
               <div>
@@ -208,43 +318,125 @@ function LoginPageContent() {
                   {mode === "create" ? "Get started" : "Login to your car rental"}
                 </h1>
                 <p className="text-xs sm:text-sm text-zinc-400 mt-1.5 leading-relaxed">
-                  Enter your email or continue with Google to build your rental portal.
+                  {mode === "create"
+                    ? "Enter your email to verify and build your car rental portal."
+                    : authMethod === "otp"
+                    ? "Enter your registered email to receive a verification OTP."
+                    : "Enter your registered email and password to access dashboard."}
                 </p>
               </div>
 
-              {emailError && (
+              {(emailError || passwordError) && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{emailError}</span>
+                  <span>{emailError || passwordError}</span>
                 </div>
               )}
 
-              {/* Email Form */}
-              <form onSubmit={handleSendOtp} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      setEmailError(null);
-                    }}
-                    placeholder="alex@luxuryrentals.com"
-                    className="w-full px-3.5 py-2.5 rounded-[10px] border border-white/[0.1] bg-white/[0.04] text-white placeholder:text-zinc-500 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
-                  />
-                </div>
+              {/* Form: OTP or Password */}
+              {mode === "login" && authMethod === "password" ? (
+                <form onSubmit={handlePasswordLogin} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setPasswordError(null);
+                      }}
+                      placeholder="alex@luxuryrentals.com"
+                      className="w-full px-3.5 py-2.5 rounded-[10px] border border-white/[0.1] bg-white/[0.04] text-white placeholder:text-zinc-500 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                    />
+                  </div>
 
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>Send OTP</span>
-                </button>
-              </form>
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                      Password
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setPasswordError(null);
+                      }}
+                      placeholder="••••••••••••"
+                      className="w-full px-3.5 py-2.5 rounded-[10px] border border-white/[0.1] bg-white/[0.04] text-white placeholder:text-zinc-500 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoggingInPassword}
+                    className="w-full py-3 rounded-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isLoggingInPassword ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Signing in...</span>
+                      </>
+                    ) : (
+                      <span>Sign In to Dashboard</span>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleSendOtp} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        setEmailError(null);
+                      }}
+                      placeholder="alex@luxuryrentals.com"
+                      className="w-full px-3.5 py-2.5 rounded-[10px] border border-white/[0.1] bg-white/[0.04] text-white placeholder:text-zinc-500 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-3 rounded-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span>Send OTP</span>
+                  </button>
+                </form>
+              )}
+
+              {/* Demo Accounts Quick-Select */}
+              <div className="pt-2 border-t border-white/[0.08]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block mb-2">
+                  1-Click Demo Logins:
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => quickLoginAs("prakashthapa617@gmail.com", "123456", true)}
+                    className="p-2 text-left rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] transition-colors"
+                  >
+                    <span className="text-xs font-semibold text-white block">Prakash (Owner)</span>
+                    <span className="text-[10px] text-zinc-400 font-mono">OTP: 123456</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => quickLoginAs("concierge@apex-fleet.com", "concierge123", false)}
+                    className="p-2 text-left rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] transition-colors"
+                  >
+                    <span className="text-xs font-semibold text-white block">Apex Concierge</span>
+                    <span className="text-[10px] text-zinc-400 font-mono">Password: concierge123</span>
+                  </button>
+                </div>
+              </div>
 
               {/* Divider */}
               <div className="relative flex items-center justify-center">
@@ -282,9 +474,6 @@ function LoginPageContent() {
                   </svg>
                   <span>Continue with Google</span>
                 </button>
-                <p className="text-[11px] text-zinc-500 text-center mt-2.5 leading-relaxed">
-                  Use the same verified email you use for email login.
-                </p>
               </div>
             </div>
           ) : (
@@ -319,7 +508,7 @@ function LoginPageContent() {
                   }}
                   className="font-semibold underline text-purple-400 hover:text-purple-300 cursor-pointer"
                 >
-                  Auto-fill
+                  Auto-fill &amp; Login
                 </button>
               </div>
 
@@ -350,9 +539,21 @@ function LoginPageContent() {
                 </div>
 
                 {otpError && (
-                  <p className="text-xs text-rose-400 text-center font-medium">
-                    {otpError}
-                  </p>
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 text-center font-medium">
+                    <p>{otpError}</p>
+                    {mode === "login" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode("create");
+                          setOtpError(null);
+                        }}
+                        className="mt-2 inline-block font-semibold underline text-purple-300 hover:text-white"
+                      >
+                        Create a new car rental portal instead
+                      </button>
+                    )}
+                  </div>
                 )}
 
                 <button
@@ -363,12 +564,12 @@ function LoginPageContent() {
                   {isVerifying ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Verifying...</span>
+                      <span>Verifying &amp; Logging In...</span>
                     </>
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>Verify &amp; Continue</span>
+                      <span>Verify &amp; Continue to Dashboard</span>
                     </>
                   )}
                 </button>

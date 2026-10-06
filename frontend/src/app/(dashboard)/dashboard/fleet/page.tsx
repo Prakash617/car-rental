@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   RefreshCw,
   Gauge,
@@ -13,6 +14,10 @@ import {
   Loader2,
   AlertTriangle,
   Sparkles,
+  Settings2,
+  Pencil,
+  Trash2,
+  UploadCloud,
 } from "lucide-react";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -23,8 +28,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getVehicles, createVehicle, CreateVehiclePayload } from "@/lib/api/vehicles";
-import { fetchBranches, Branch } from "@/lib/api/branches";
+import {
+  getVehicles,
+  createVehicle,
+  updateVehicle,
+  deleteVehicle,
+  uploadVehicleImage,
+  UploadImageResult,
+  CreateVehiclePayload,
+} from "@/lib/api/vehicles";
+import { fetchBranches, createBranch, Branch } from "@/lib/api/branches";
+import { fetchCategories, CategoryItem } from "@/lib/api/categories";
+import { fetchTransmissions, TransmissionItem } from "@/lib/api/transmissions";
 import { updateVehicleStatus } from "@/lib/api/dashboard";
 import { getSafeImageUrl } from "@/lib/utils";
 import { Vehicle, VehicleCategory, VehicleStatus } from "@/types";
@@ -63,16 +78,73 @@ export default function FleetManagementPage() {
   const queryClient = useQueryClient();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [transmissions, setTransmissions] = useState<TransmissionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
+  // Edit / Delete Vehicle State
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   // Add Vehicle Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [showNewBranchForm, setShowNewBranchForm] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [newBranchCity, setNewBranchCity] = useState("");
+  const [isCreatingBranch, setIsCreatingBranch] = useState(false);
+
+  // Photo Upload & Compression State
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [uploadStats, setUploadStats] = useState<UploadImageResult | null>(null);
+  const [photoSourceTab, setPhotoSourceTab] = useState<"upload" | "presets">("upload");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Invalid file type", {
+        description: "Please select an image file (JPEG, PNG, WebP, AVIF, HEIC).",
+      });
+      return;
+    }
+
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("File too large", {
+        description: "Maximum vehicle photo size is 25 MB.",
+      });
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    try {
+      const result = await uploadVehicleImage(file, { is_primary: true }, token || undefined);
+      setUploadStats(result);
+      setFormData((prev) => ({
+        ...prev,
+        images: [{ url: result.url, is_primary: true, caption: `${prev.brand} ${prev.model}` }],
+      }));
+      toast.success("Photo compressed & saved!", {
+        description: `Reduced by ${result.reduction_percentage}% (${Math.round(result.original_size / 1024)} KB → ${Math.round(result.compressed_size / 1024)} KB WebP)`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to upload and compress photo";
+      toast.error("Upload failed", { description: msg });
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
   const [formData, setFormData] = useState<CreateVehiclePayload>({
     branch: "",
     brand: "Ferrari",
@@ -99,26 +171,107 @@ export default function FleetManagementPage() {
     ],
   });
 
+  const handleQuickCreateBranch = async () => {
+    if (!newBranchName.trim()) {
+      toast.error("Please enter a branch name");
+      return;
+    }
+    setIsCreatingBranch(true);
+    try {
+      const created = await createBranch(
+        {
+          name: newBranchName.trim(),
+          city: newBranchCity.trim() || "Metropolis",
+        },
+        token || undefined
+      );
+      setBranches((prev) => [...prev, created]);
+      setFormData((prev) => ({ ...prev, branch: created.id }));
+      setNewBranchName("");
+      setNewBranchCity("");
+      setShowNewBranchForm(false);
+      toast.success(`Branch "${created.name}" created and selected!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create branch";
+      toast.error(msg);
+    } finally {
+      setIsCreatingBranch(false);
+    }
+  };
+
   const openAddModal = () => {
     const randomPlate = `LUX-${Math.floor(100 + Math.random() * 900)}`;
     setFormData((prev) => ({
       ...prev,
       branch: prev.branch || (branches.length > 0 ? branches[0].id : ""),
+      category: prev.category || (categories.length > 0 ? categories[0].slug : "sports"),
+      transmission: prev.transmission || (transmissions.length > 0 ? transmissions[0].slug : "automatic"),
       license_plate: randomPlate,
     }));
+    setShowNewBranchForm(false);
+    setNewBranchName("");
+    setNewBranchCity("");
     setModalError(null);
+    setUploadStats(null);
+    setPhotoSourceTab("upload");
+    setShowAddModal(true);
+  };
+
+  const closeVehicleModal = () => {
+    setShowAddModal(false);
+    setEditingVehicle(null);
+    setModalError(null);
+    setUploadStats(null);
+  };
+
+  const openEditModal = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle);
+    setFormData({
+      branch: vehicle.branch || vehicle.branch_id || (branches.length > 0 ? branches[0].id : ""),
+      brand: vehicle.brand,
+      model: vehicle.model,
+      year: vehicle.year,
+      license_plate: vehicle.license_plate,
+      category: vehicle.category,
+      transmission: vehicle.transmission,
+      fuel_type: vehicle.fuel_type,
+      seats: vehicle.seats,
+      doors: vehicle.doors,
+      mileage: vehicle.mileage,
+      color: vehicle.color,
+      status: vehicle.status,
+      daily_rate: vehicle.daily_rate,
+      deposit_amount: vehicle.deposit_amount || "0.00",
+      description: vehicle.description || "",
+      images:
+        vehicle.images && vehicle.images.length > 0
+          ? vehicle.images.map((img, idx) => ({
+              url: typeof img === "string" ? img : img.url,
+              is_primary: idx === 0,
+              caption: typeof img === "string" ? "" : img.caption,
+            }))
+          : [{ url: IMAGE_PRESETS[1].url, is_primary: true }],
+    });
+    setShowNewBranchForm(false);
+    setModalError(null);
+    setUploadStats(null);
+    setPhotoSourceTab(vehicle.images && vehicle.images.length > 0 ? "upload" : "presets");
     setShowAddModal(true);
   };
 
   const loadFleet = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [fleetData, branchData] = await Promise.all([
+      const [fleetData, branchData, categoryData, transmissionData] = await Promise.all([
         getVehicles(),
         fetchBranches().catch(() => []),
+        fetchCategories().catch(() => []),
+        fetchTransmissions().catch(() => []),
       ]);
       setVehicles(fleetData);
       setBranches(branchData);
+      setCategories(categoryData);
+      setTransmissions(transmissionData);
       if (branchData.length > 0) {
         setFormData((prev) => ({ ...prev, branch: branchData[0].id }));
       }
@@ -157,23 +310,43 @@ export default function FleetManagementPage() {
     }
   };
 
-  const handleAddVehicle = async (e: React.FormEvent) => {
+  const handleSaveVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     setModalError(null);
-    const branchId = formData.branch || (branches.length > 0 ? branches[0].id : "");
-    if (!branchId) {
-      const msg = "Please select a depot branch for this vehicle.";
-      setModalError(msg);
-      toast.error(msg);
-      return;
+    const isEdit = Boolean(editingVehicle);
+    let branchId = formData.branch || (branches.length > 0 ? branches[0].id : "");
+    if (!branchId && !isEdit) {
+      try {
+        const autoBranch = await createBranch(
+          { name: "Main Headquarters", city: "Metropolis" },
+          token || undefined
+        );
+        setBranches((prev) => [...prev, autoBranch]);
+        branchId = autoBranch.id;
+      } catch {
+        // Fallback to backend serializer auto-creation
+      }
     }
 
     setIsSubmitting(true);
     try {
-      const payload = {
+      const payload: CreateVehiclePayload = {
         ...formData,
-        branch: branchId,
+        ...(branchId ? { branch: branchId } : {}),
+        deposit_amount: formData.deposit_amount || "0.00",
       };
+
+      if (editingVehicle) {
+        const updated = await updateVehicle(editingVehicle.id, payload, token || undefined);
+        setVehicles((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+        queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.all });
+        toast.success(`Vehicle ${updated.brand} ${updated.model} updated!`, {
+          description: `License Plate: ${updated.license_plate} · Daily Rate: $${updated.daily_rate}/day`,
+        });
+        closeVehicleModal();
+        return;
+      }
+
       const created = await createVehicle(payload, token || undefined);
       setVehicles((prev) => [created, ...prev]);
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.all });
@@ -203,13 +376,40 @@ export default function FleetManagementPage() {
         images: [{ url: IMAGE_PRESETS[1].url, is_primary: true }],
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to create vehicle";
+      const fallback = isEdit ? "Failed to update vehicle" : "Failed to create vehicle";
+      const msg = err instanceof Error ? err.message : fallback;
       setModalError(msg);
-      toast.error("Failed to create vehicle", {
+      toast.error(fallback, {
         description: msg,
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicle: Vehicle) => {
+    if (
+      !confirm(
+        `Are you sure you want to delete "${vehicle.brand} ${vehicle.model}" (${vehicle.license_plate}) from the fleet?`
+      )
+    ) {
+      return;
+    }
+    setDeletingId(vehicle.id);
+    try {
+      await deleteVehicle(vehicle.id, token || undefined);
+      setVehicles((prev) => prev.filter((v) => v.id !== vehicle.id));
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.all });
+      toast.success(`Vehicle ${vehicle.brand} ${vehicle.model} deleted.`, {
+        description: `License Plate: ${vehicle.license_plate} removed from fleet inventory.`,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete vehicle";
+      toast.error("Failed to delete vehicle", {
+        description: msg,
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -240,6 +440,17 @@ export default function FleetManagementPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link href="/dashboard/settings">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-white/[0.08] text-zinc-300 hover:text-white"
+            >
+              <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+              Branches &amp; Settings
+            </Button>
+          </Link>
+
           <Button
             variant="outline"
             size="sm"
@@ -280,11 +491,20 @@ export default function FleetManagementPage() {
               className="bg-black/40 border-white/[0.08] text-sm text-white"
             >
               <option value="all">All Categories</option>
-              <option value="luxury">Luxury Flagship</option>
-              <option value="sports">Exotic Sports</option>
-              <option value="suv">Premium SUV</option>
-              <option value="sedan">Executive Sedan</option>
-              <option value="electric">Electric / EV</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.slug}>
+                  {c.name}
+                </option>
+              ))}
+              {categories.length === 0 && (
+                <>
+                  <option value="luxury">Luxury Flagship</option>
+                  <option value="sports">Exotic Sports</option>
+                  <option value="suv">Premium SUV</option>
+                  <option value="sedan">Executive Sedan</option>
+                  <option value="electric">Electric / EV</option>
+                </>
+              )}
             </Select>
           </div>
 
@@ -317,6 +537,7 @@ export default function FleetManagementPage() {
               <TableHead>Daily Rate</TableHead>
               <TableHead>Mileage</TableHead>
               <TableHead>Operational Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -330,11 +551,12 @@ export default function FleetManagementPage() {
                   <TableCell><Skeleton className="h-4 w-16 bg-white/[0.04]" /></TableCell>
                   <TableCell><Skeleton className="h-4 w-16 bg-white/[0.04]" /></TableCell>
                   <TableCell><Skeleton className="h-6 w-24 rounded-full bg-white/[0.04]" /></TableCell>
+                  <TableCell><Skeleton className="h-6 w-16 rounded-lg bg-white/[0.04]" /></TableCell>
                 </TableRow>
               ))
             ) : filteredVehicles.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-48 text-center text-zinc-500">
+                <TableCell colSpan={8} className="h-48 text-center text-zinc-500">
                   <div className="flex flex-col items-center justify-center gap-2">
                     <Car className="h-8 w-8 text-zinc-600" />
                     <p className="text-sm font-medium text-zinc-400">No vehicles match criteria</p>
@@ -344,10 +566,11 @@ export default function FleetManagementPage() {
               </TableRow>
             ) : (
               filteredVehicles.map((vehicle) => {
+                const firstImg = vehicle.images?.[0];
                 const rawUrl =
-                  vehicle.images && vehicle.images.length > 0
-                    ? vehicle.images[0].url
-                    : IMAGE_PRESETS[1].url;
+                  typeof firstImg === "string"
+                    ? firstImg
+                    : firstImg?.url || IMAGE_PRESETS[1].url;
                 const img = getSafeImageUrl(rawUrl, IMAGE_PRESETS[1].url);
 
                 return (
@@ -432,6 +655,33 @@ export default function FleetManagementPage() {
                         </select>
                       </div>
                     </TableCell>
+
+                    {/* Row Actions */}
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEditModal(vehicle)}
+                          className="h-7 px-2 text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={deletingId === vehicle.id || updatingId === vehicle.id}
+                          onClick={() => handleDeleteVehicle(vehicle)}
+                          className="h-7 px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                        >
+                          {deletingId === vehicle.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    </TableCell>
                   </TableRow>
                 );
               })
@@ -451,23 +701,25 @@ export default function FleetManagementPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white font-serif">
-                    Add Vehicle to Fleet Catalog
+                    {editingVehicle ? "Edit Vehicle" : "Add Vehicle to Fleet Catalog"}
                   </h3>
                   <p className="text-xs text-zinc-400">
-                    Register a new asset with telemetry, pricing, and high-definition imagery.
+                    {editingVehicle
+                      ? "Update specifications, pricing, depot assignment, and imagery."
+                      : "Register a new asset with telemetry, pricing, and high-definition imagery."}
                   </p>
                 </div>
               </div>
 
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={closeVehicleModal}
                 className="text-zinc-500 hover:text-white p-1 text-sm rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleAddVehicle} className="space-y-4">
+            <form onSubmit={handleSaveVehicle} className="space-y-4">
               {/* Row 1: Brand & Model */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -556,32 +808,68 @@ export default function FleetManagementPage() {
               {/* Row 3: Category, Transmission, Fuel Type */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    Category *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-zinc-300">
+                      Category *
+                    </label>
+                    <Link
+                      href="/dashboard/settings?tab=categories"
+                      target="_blank"
+                      className="text-[10px] text-[#D4AF37] hover:underline font-mono"
+                    >
+                      Manage
+                    </Link>
+                  </div>
                   <select
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value as VehicleCategory })}
                     className="w-full h-9 rounded-md bg-black/50 border border-white/[0.08] text-xs text-white px-2.5"
                   >
-                    <option value="sports">Exotic Sports</option>
-                    <option value="luxury">Luxury Flagship</option>
-                    <option value="suv">Premium SUV</option>
-                    <option value="sedan">Executive Sedan</option>
-                    <option value="electric">Electric / EV</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.slug}>
+                        {c.name}
+                      </option>
+                    ))}
+                    {categories.length === 0 && (
+                      <>
+                        <option value="sports">Exotic Sports</option>
+                        <option value="luxury">Luxury Flagship</option>
+                        <option value="suv">Premium SUV</option>
+                        <option value="sedan">Executive Sedan</option>
+                        <option value="electric">Electric / EV</option>
+                      </>
+                    )}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    Transmission *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-zinc-300">
+                      Transmission *
+                    </label>
+                    <Link
+                      href="/dashboard/settings?tab=transmissions"
+                      target="_blank"
+                      className="text-[10px] text-[#D4AF37] hover:underline font-mono"
+                    >
+                      Manage
+                    </Link>
+                  </div>
                   <select
                     value={formData.transmission}
                     onChange={(e) => setFormData({ ...formData, transmission: e.target.value as "automatic" | "manual" })}
                     className="w-full h-9 rounded-md bg-black/50 border border-white/[0.08] text-xs text-white px-2.5"
                   >
-                    <option value="automatic">Automatic</option>
-                    <option value="manual">Manual</option>
+                    {transmissions.map((t) => (
+                      <option key={t.id} value={t.slug}>
+                        {t.name}
+                      </option>
+                    ))}
+                    {transmissions.length === 0 && (
+                      <>
+                        <option value="automatic">Automatic</option>
+                        <option value="manual">Manual</option>
+                      </>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -602,23 +890,72 @@ export default function FleetManagementPage() {
               </div>
 
               {/* Row 4: Depot Branch, Daily Rate, Security Deposit */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    Depot Branch *
-                  </label>
-                  <select
-                    value={formData.branch}
-                    onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
-                    className="w-full h-9 rounded-md bg-black/50 border border-white/[0.08] text-xs text-white px-2.5"
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} ({b.code})
-                      </option>
-                    ))}
-                    {branches.length === 0 && <option value="">Loading branches...</option>}
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-zinc-300">
+                      Depot Branch *
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href="/dashboard/settings?tab=branches"
+                        target="_blank"
+                        className="text-[10px] text-zinc-400 hover:text-white font-mono"
+                      >
+                        Manage
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewBranchForm(!showNewBranchForm)}
+                        className="text-[10px] text-[#D4AF37] hover:underline font-mono"
+                      >
+                        {showNewBranchForm ? "Cancel" : "+ New Branch"}
+                      </button>
+                    </div>
+                  </div>
+                  {showNewBranchForm ? (
+                    <div className="space-y-2 p-2.5 rounded-lg bg-white/[0.04] border border-white/[0.1]">
+                      <Input
+                        placeholder="Branch Name (e.g. Airport Hub)"
+                        value={newBranchName}
+                        onChange={(e) => setNewBranchName(e.target.value)}
+                        className="bg-black/50 border-white/[0.08] text-white text-xs h-7"
+                      />
+                      <Input
+                        placeholder="City (e.g. Los Angeles)"
+                        value={newBranchCity}
+                        onChange={(e) => setNewBranchCity(e.target.value)}
+                        className="bg-black/50 border-white/[0.08] text-white text-xs h-7"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={isCreatingBranch}
+                        onClick={handleQuickCreateBranch}
+                        className="w-full h-7 text-xs bg-[#D4AF37] text-black font-semibold hover:bg-amber-400"
+                      >
+                        {isCreatingBranch ? (
+                          <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                        ) : null}
+                        <span>Save &amp; Select Branch</span>
+                      </Button>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.branch}
+                      onChange={(e) => setFormData({ ...formData, branch: e.target.value })}
+                      className="w-full h-9 rounded-md bg-black/50 border border-white/[0.08] text-xs text-white px-2.5 focus:border-[#D4AF37] focus:outline-none"
+                    >
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} ({b.code})
+                        </option>
+                      ))}
+                      {branches.length === 0 && (
+                        <option value="">Main Depot (Auto-created)</option>
+                      )}
+                    </select>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-300 mb-1">
@@ -641,7 +978,7 @@ export default function FleetManagementPage() {
                   <Input
                     type="number"
                     step="0.01"
-                    placeholder="2500.00"
+                    placeholder="0.00"
                     value={formData.deposit_amount}
                     onChange={(e) => setFormData({ ...formData, deposit_amount: e.target.value })}
                     className="bg-black/50 border-white/[0.08] text-white text-xs font-mono"
@@ -649,45 +986,181 @@ export default function FleetManagementPage() {
                 </div>
               </div>
 
-              {/* Row 5: Initial Image Selection */}
-              <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1.5 flex items-center justify-between">
-                  <span>Primary Display Photo</span>
-                  <span className="text-[11px] text-zinc-500 font-mono">Select preset or paste URL</span>
-                </label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-2">
-                  {IMAGE_PRESETS.map((preset, idx) => (
+              {/* Row 5: Photo Upload & Compression / Preset Selection */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-zinc-300">
+                    Vehicle Photography *
+                  </label>
+                  <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/[0.08] text-[11px]">
                     <button
                       type="button"
-                      key={idx}
-                      onClick={() =>
-                        setFormData({
-                          ...formData,
-                          images: [{ url: preset.url, is_primary: true, caption: preset.label }],
-                        })
-                      }
-                      className={`relative aspect-[16/10] rounded-lg overflow-hidden border transition-all ${
-                        formData.images?.[0]?.url === preset.url
-                          ? "ring-2 ring-[#D4AF37] border-transparent scale-102"
-                          : "border-white/[0.08] opacity-60 hover:opacity-100"
+                      onClick={() => setPhotoSourceTab("upload")}
+                      className={`px-2.5 py-1 rounded-md transition-colors ${
+                        photoSourceTab === "upload"
+                          ? "bg-[#D4AF37] text-black font-semibold shadow-sm"
+                          : "text-zinc-400 hover:text-white"
                       }`}
                     >
-                      <Image src={preset.url} alt={preset.label} fill sizes="100px" className="object-cover" />
+                      Upload &amp; Compress
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => setPhotoSourceTab("presets")}
+                      className={`px-2.5 py-1 rounded-md transition-colors ${
+                        photoSourceTab === "presets"
+                          ? "bg-[#D4AF37] text-black font-semibold shadow-sm"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      Presets &amp; URL
+                    </button>
+                  </div>
                 </div>
-                <Input
-                  required
-                  placeholder="https://images.unsplash.com/..."
-                  value={formData.images?.[0]?.url || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      images: [{ url: e.target.value, is_primary: true }],
-                    })
-                  }
-                  className="bg-black/50 border-white/[0.08] text-white text-xs font-mono"
-                />
+
+                {photoSourceTab === "upload" ? (
+                  <div className="space-y-3">
+                    {/* Upload Drop Zone */}
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`relative flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                        isUploadingPhoto
+                          ? "border-[#D4AF37] bg-[#D4AF37]/5 pointer-events-none"
+                          : "border-white/[0.15] bg-black/40 hover:border-[#D4AF37]/60 hover:bg-black/60 group"
+                      }`}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/avif,image/heic"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+
+                      {isUploadingPhoto ? (
+                        <div className="flex flex-col items-center gap-2 py-3 text-center">
+                          <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin" />
+                          <span className="text-xs font-semibold text-white">
+                            Uploading &amp; Compressing via Backend...
+                          </span>
+                          <span className="text-[11px] text-zinc-400 font-mono">
+                            Auto-transposing EXIF, downscaling to 1080p, converting to WebP
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-center">
+                          <div className="w-11 h-11 rounded-full bg-white/[0.05] border border-white/[0.1] flex items-center justify-center text-zinc-300 group-hover:scale-105 transition-transform group-hover:border-[#D4AF37]/40">
+                            <UploadCloud className="w-5 h-5 text-[#D4AF37]" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-semibold text-white group-hover:text-[#D4AF37] transition-colors">
+                              Click or drop vehicle photo to upload
+                            </span>
+                            <p className="text-[11px] text-zinc-400 mt-0.5">
+                              Supports JPG, PNG, WebP up to 25MB. Backend automatically compresses into lightweight WebP.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Compressed Photo Preview & Savings Metadata */}
+                    {formData.images?.[0]?.url && (
+                      <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center gap-3">
+                        <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-zinc-900 border border-white/[0.1]">
+                          <Image
+                            src={getSafeImageUrl(formData.images[0].url)}
+                            alt="Vehicle Preview"
+                            fill
+                            unoptimized
+                            className="object-cover"
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-white truncate">
+                              {uploadStats?.original_name || "Active Vehicle Photo"}
+                            </span>
+                            {uploadStats ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                                <Sparkles className="w-3 h-3 text-emerald-400" />
+                                {uploadStats.reduction_percentage}% compressed
+                              </span>
+                            ) : formData.images[0].url.startsWith("/media/") ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-semibold">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                Server Compressed
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {uploadStats ? (
+                            <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono mt-1">
+                              <span>{(uploadStats.original_size / 1024).toFixed(0)} KB</span>
+                              <span>&rarr;</span>
+                              <span className="text-emerald-300 font-semibold">
+                                {(uploadStats.compressed_size / 1024).toFixed(0)} KB ({uploadStats.format})
+                              </span>
+                              <span>&middot;</span>
+                              <span>{uploadStats.width}&times;{uploadStats.height}px</span>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-zinc-400 font-mono mt-0.5 truncate">
+                              {formData.images[0].url}
+                            </p>
+                          )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-2.5 py-1 text-xs rounded-md bg-white/[0.06] hover:bg-white/[0.1] text-zinc-300 hover:text-white transition-colors"
+                        >
+                          Replace
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                      {IMAGE_PRESETS.map((preset, idx) => (
+                        <button
+                          type="button"
+                          key={idx}
+                          onClick={() => {
+                            setUploadStats(null);
+                            setFormData({
+                              ...formData,
+                              images: [{ url: preset.url, is_primary: true, caption: preset.label }],
+                            });
+                          }}
+                          className={`relative aspect-[16/10] rounded-lg overflow-hidden border transition-all ${
+                            formData.images?.[0]?.url === preset.url
+                              ? "ring-2 ring-[#D4AF37] border-transparent scale-102"
+                              : "border-white/[0.08] opacity-60 hover:opacity-100"
+                          }`}
+                        >
+                          <Image src={preset.url} alt={preset.label} fill sizes="100px" className="object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                    <Input
+                      required
+                      placeholder="https://images.unsplash.com/... or /media/vehicles/..."
+                      value={formData.images?.[0]?.url || ""}
+                      onChange={(e) => {
+                        setUploadStats(null);
+                        setFormData({
+                          ...formData,
+                          images: [{ url: e.target.value, is_primary: true }],
+                        });
+                      }}
+                      className="bg-black/50 border-white/[0.08] text-white text-xs font-mono"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Row 6: Description */}
@@ -709,7 +1182,9 @@ export default function FleetManagementPage() {
                 <div className="flex items-start gap-2.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs animate-in fade-in slide-in-from-top-1">
                   <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
                   <div className="flex-1">
-                    <span className="font-semibold block text-rose-200 mb-0.5">Registration Failed</span>
+                    <span className="font-semibold block text-rose-200 mb-0.5">
+                      {editingVehicle ? "Update Failed" : "Registration Failed"}
+                    </span>
                     <span className="text-rose-300/90 leading-relaxed">{modalError}</span>
                   </div>
                 </div>
@@ -720,7 +1195,7 @@ export default function FleetManagementPage() {
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={closeVehicleModal}
                   className="text-xs text-zinc-400 hover:text-white"
                 >
                   Cancel
@@ -733,7 +1208,12 @@ export default function FleetManagementPage() {
                   {isSubmitting ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Registering Asset...
+                      {editingVehicle ? "Saving Changes..." : "Registering Asset..."}
+                    </span>
+                  ) : editingVehicle ? (
+                    <span className="flex items-center gap-1.5">
+                      <Pencil className="w-3.5 h-3.5" />
+                      Save Changes
                     </span>
                   ) : (
                     <span className="flex items-center gap-1.5">

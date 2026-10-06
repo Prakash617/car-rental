@@ -13,20 +13,20 @@ export interface TenantResolution {
 }
 
 const DEFAULT_BRANDING: TenantBranding = {
-  name: "Apex Luxury Concierge",
+  name: "Apex Rentals",
   logo_url: "/brand/logo.svg",
-  primary_color: "#D4AF37",
-  accent_color: "#B38F26",
-  font_heading: "serif",
+  primary_color: "#e11d2e",
+  accent_color: "#388ddd",
+  font_heading: "sans",
   support_email: "concierge@apex-fleet.com",
   support_phone: "+1 (800) 555-APEX",
-  currency: "USD",
-  timezone: "UTC",
-  active_theme: "luxury",
-  hero_title: "The Pinnacle of Automotive Luxury",
-  hero_subtitle: "Experience peerless performance and white-glove concierge mobility.",
-  seo_meta_title: "Apex Luxury Concierge | Exotic & Luxury Automobile Hire",
-  seo_meta_description: "Curated exotic fleet, private tarmac delivery, and 24/7 dedicated concierge service.",
+  currency: "Rs.",
+  timezone: "Asia/Kathmandu",
+  active_theme: "sajilo",
+  hero_title: "Rent A Car With Driver",
+  hero_subtitle: "Experience seamless mobility across 14+ cities with verified vehicles and professional chauffeurs.",
+  seo_meta_title: "Apex Rentals | Luxury & Standard Car Rental",
+  seo_meta_description: "Rent cars, SUVs, Hiace, Scorpio, and EV vehicles with professional drivers at the best rates with Apex Rentals.",
 };
 
 /**
@@ -34,24 +34,15 @@ const DEFAULT_BRANDING: TenantBranding = {
  */
 export function isSuperAdminHost(hostname: string): boolean {
   const clean = hostname.split(":")[0].toLowerCase();
-  return (
-    clean === "admin.localhost" ||
-    clean === "admin.platform.localhost" ||
-    clean === "admin.platform.local"
-  );
+  return clean === "admin.localhost";
 }
 
 /**
- * Checks if a hostname belongs to the root customer portal (localhost:3000, platform.localhost)
+ * Checks if a hostname belongs to the root customer portal (localhost:3000)
  */
 export function isPlatformRoot(hostname: string): boolean {
   const clean = hostname.split(":")[0].toLowerCase();
-  return (
-    clean === "localhost" ||
-    clean === "127.0.0.1" ||
-    clean === "platform.localhost" ||
-    clean === "platform.local"
-  );
+  return clean === "localhost" || clean === "127.0.0.1";
 }
 
 /**
@@ -62,11 +53,38 @@ export function extractTenantSubdomain(hostname: string): string | null {
   const clean = hostname.split(":")[0].toLowerCase();
   if (clean.endsWith(".localhost")) {
     const sub = clean.slice(0, -".localhost".length);
-    if (sub !== "platform" && sub !== "admin" && sub !== "www") {
+    if (sub !== "admin" && sub !== "www") {
       return sub;
     }
   }
   return null;
+}
+
+/**
+ * Resolves the tenant host that server-side API calls should target.
+ *
+ * - Tenant subdomain / custom domain requests already identify the tenant.
+ * - Platform root (localhost:3000) relies on the `?tenant=` param written by the
+ *   dashboard middleware / auth session, falling back to the default tenant.
+ * Mirrors the client-side resolution in `apiFetch`.
+ */
+export function resolveTenantHost(
+  hostnameHeader?: string | null,
+  tenantParam?: string | null
+): string {
+  const hostname = hostnameHeader || "localhost:3000";
+
+  if (extractTenantSubdomain(hostname)) return hostname;
+
+  if (isPlatformRoot(hostname) || isSuperAdminHost(hostname)) {
+    if (tenantParam) {
+      const base = tenantParam.replace(/:\d+$/, "");
+      return `${base}:3000`;
+    }
+    return "apex.localhost:3000";
+  }
+
+  return hostname;
 }
 
 /**

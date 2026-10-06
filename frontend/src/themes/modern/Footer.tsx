@@ -2,6 +2,7 @@
 
 import React from "react";
 import { FooterProps } from "@/lib/themes/types";
+import { PageLinks } from "@/components/storefront/PageLinks";
 import { Zap, Mail, Phone, ShieldCheck } from "lucide-react";
 
 export function ModernFooter({ branding }: FooterProps) {
@@ -77,6 +78,7 @@ export function ModernFooter({ branding }: FooterProps) {
           <span className="hover:text-zinc-300 cursor-pointer">Terms of Service</span>
           <span className="hover:text-zinc-300 cursor-pointer">Privacy Notice</span>
           <span className="hover:text-zinc-300 cursor-pointer">Fleet Telemetry Privacy</span>
+          <PageLinks variant="footer" className="hover:text-zinc-300 transition-colors" />
         </div>
       </div>
     </footer>

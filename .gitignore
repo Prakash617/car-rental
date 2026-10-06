@@ -51,6 +51,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-*.swo
 .git_bak/
 **/.git_bak/
+celerybeat-schedule*
+*.pid

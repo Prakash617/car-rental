@@ -1,4 +1,5 @@
-import { ThemeDefinition } from "./types";
+import { ThemeDefinition, ThemeId } from "./types";
+import { sajiloTheme } from "@/themes/sajilo";
 import { luxuryTheme } from "@/themes/luxury";
 import { modernTheme } from "@/themes/modern";
 import { adventureTheme } from "@/themes/adventure";
@@ -10,12 +11,20 @@ export interface ThemeMeta {
   id: string;
   name: string;
   description: string;
-  category: "luxury" | "modern" | "classic" | "adventure" | "urban" | "minimal";
+  category: ThemeId;
   previewImage: string;
   accentColor: string;
 }
 
 export const THEME_REGISTRY: Record<string, ThemeMeta> = {
+  sajilo: {
+    id: "sajilo",
+    name: "Sajilo Rental Nepal",
+    description: "Sajilo Rental official design theme with verified chauffeurs, Nepal city routes, and interactive booking system.",
+    category: "sajilo",
+    previewImage: "/brand/logo.svg",
+    accentColor: "#e11d2e",
+  },
   luxury: {
     id: "luxury",
     name: "Luxury Concierge",
@@ -67,6 +76,7 @@ export const THEME_REGISTRY: Record<string, ThemeMeta> = {
 };
 
 export const THEME_DEFINITIONS: Record<string, ThemeDefinition> = {
+  sajilo: sajiloTheme,
   luxury: luxuryTheme,
   modern: modernTheme,
   classic: classicTheme,
@@ -76,7 +86,7 @@ export const THEME_DEFINITIONS: Record<string, ThemeDefinition> = {
 };
 
 export function getThemeMeta(themeId: string): ThemeMeta {
-  return THEME_REGISTRY[themeId] || THEME_REGISTRY.luxury;
+  return THEME_REGISTRY[themeId] || THEME_REGISTRY.sajilo;
 }
 
 export function getAllThemes(): ThemeMeta[] {
@@ -87,7 +97,7 @@ export function getThemeDefinition(themeId?: string): ThemeDefinition {
   if (themeId && themeId in THEME_DEFINITIONS) {
     return THEME_DEFINITIONS[themeId];
   }
-  return THEME_DEFINITIONS.luxury;
+  return THEME_DEFINITIONS.sajilo;
 }
 
 export function getThemeHeadingFont(activeTheme?: string): string {

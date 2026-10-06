@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { Topbar } from "@/components/dashboard/Topbar";
 import { AuthProvider, useAuth } from "@/lib/auth/AuthContext";
-import { TenantLoginGate } from "@/components/dashboard/TenantLoginGate";
 import { BrandingProvider } from "@/lib/context/branding";
 import { TenantBranding } from "@/types";
 import { apiFetch } from "@/lib/api/client";
@@ -31,34 +30,28 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   // Dynamically load the current tenant's branding & website CMS configuration
   useEffect(() => {
-    if (isAuthenticated) {
-      apiFetch<TenantBranding>("/website/config/")
-        .then((data) => {
-          if (data && data.name) {
-            setBranding((prev) => ({ ...prev, ...data }));
-          }
-        })
-        .catch(() => {
-          if (tenantDomain) {
-            const cleanSub = tenantDomain.split(".")[0];
-            const name = cleanSub.charAt(0).toUpperCase() + cleanSub.slice(1) + " Fleet";
-            setBranding((prev) => ({ ...prev, name }));
-          }
-        });
-    }
+    apiFetch<TenantBranding>("/website/config/")
+      .then((data) => {
+        if (data && data.name) {
+          setBranding((prev) => ({ ...prev, ...data }));
+        }
+      })
+      .catch(() => {
+        if (tenantDomain) {
+          const cleanSub = tenantDomain.split(".")[0];
+          const name = cleanSub.charAt(0).toUpperCase() + cleanSub.slice(1) + " Fleet";
+          setBranding((prev) => ({ ...prev, name }));
+        }
+      });
   }, [isAuthenticated, tenantDomain]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#07080D] flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-[#D4AF37]" />
-        <span className="text-xs font-mono text-zinc-400">Verifying tenant staff session...</span>
+        <span className="text-xs font-mono text-zinc-400">Loading dashboard...</span>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    return <TenantLoginGate />;
   }
 
   return (
@@ -100,7 +93,6 @@ export default function DashboardLayout({
       if (
         cleanHost.endsWith(".localhost") &&
         cleanHost !== "localhost" &&
-        cleanHost !== "platform.localhost" &&
         cleanHost !== "admin.localhost"
       ) {
         setIsRedirecting(true);

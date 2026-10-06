@@ -14,8 +14,10 @@ export class ApiError extends Error {
   }
 }
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const rawApiBase = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+export const API_BASE_URL = rawApiBase.endsWith("/api/v1")
+  ? rawApiBase
+  : `${rawApiBase}/api/v1`;
 
 export interface RequestOptions extends RequestInit {
   tenantHost?: string;
@@ -78,7 +80,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestOptions = {}
     const cleanHost = currentHost.split(":")[0].toLowerCase();
 
     // If accessing on localhost:3000 or platform root, route to the user's tenant domain
-    if (cleanHost === "localhost" || cleanHost === "127.0.0.1" || cleanHost === "platform.localhost") {
+    if (cleanHost === "localhost" || cleanHost === "127.0.0.1") {
       const urlParams = new URLSearchParams(window.location.search);
       const tenantParam = urlParams.get("tenant");
       if (tenantParam) {
@@ -87,6 +89,8 @@ export async function apiFetch<T>(endpoint: string, options: RequestOptions = {}
       } else if (storedSession?.tenant_domain) {
         const baseDomain = storedSession.tenant_domain.replace(/:\d+$/, "");
         effectiveHost = `${baseDomain}:3000`;
+      } else if (endpoint.includes("/auth/")) {
+        effectiveHost = "localhost:3000";
       } else {
         effectiveHost = "apex.localhost:3000";
       }
@@ -103,6 +107,10 @@ export async function apiFetch<T>(endpoint: string, options: RequestOptions = {}
     "X-Forwarded-Host": resolvedHost,
     ...((customHeaders as Record<string, string>) || {}),
   };
+
+  if (restOptions.body instanceof FormData) {
+    delete headers["Content-Type"];
+  }
 
   // The 'Host' header is forbidden in browser fetch() specifications; only attach on SSR
   if (typeof window === "undefined") {

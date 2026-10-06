@@ -2,6 +2,7 @@
 
 import React from "react";
 import { FooterProps } from "@/lib/themes/types";
+import { PageLinks } from "@/components/storefront/PageLinks";
 import { Compass, Mail, Phone, Mountain, Radio } from "lucide-react";
 
 export function AdventureFooter({ branding }: FooterProps) {
@@ -73,6 +74,7 @@ export function AdventureFooter({ branding }: FooterProps) {
           <span className="hover:text-stone-300 cursor-pointer">Backcountry Insurance Policy</span>
           <span className="hover:text-stone-300 cursor-pointer">Emergency SOS Protocol</span>
           <span className="hover:text-stone-300 cursor-pointer">Waiver & Liability</span>
+          <PageLinks variant="footer" className="hover:text-stone-300 transition-colors" />
         </div>
       </div>
     </footer>

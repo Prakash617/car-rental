@@ -642,11 +642,15 @@ export default function FleetMaintenancePage() {
                   onChange={(e) => setScheduleForm({ ...scheduleForm, vehicle: e.target.value })}
                   className="bg-black/40 border-white/[0.08] text-white"
                 >
-                  {vehicles.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.brand} {v.model} ({v.license_plate})
-                    </option>
-                  ))}
+                  {vehicles.length === 0 ? (
+                    <option value="" disabled>Loading vehicles...</option>
+                  ) : (
+                    vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.brand} {v.model} ({v.license_plate})
+                      </option>
+                    ))
+                  )}
                 </Select>
               </div>
 
@@ -748,11 +752,15 @@ export default function FleetMaintenancePage() {
                   onChange={(e) => setInspectionForm({ ...inspectionForm, vehicle_id: e.target.value })}
                   className="bg-black/40 border-white/[0.08] text-white"
                 >
-                  {vehicles.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.brand} {v.model} ({v.license_plate})
-                    </option>
-                  ))}
+                  {vehicles.length === 0 ? (
+                    <option value="" disabled>Loading vehicles...</option>
+                  ) : (
+                    vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.brand} {v.model} ({v.license_plate})
+                      </option>
+                    ))
+                  )}
                 </Select>
               </div>
 

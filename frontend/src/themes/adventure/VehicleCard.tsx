@@ -8,10 +8,11 @@ import { getSafeImageUrl, DEFAULT_VEHICLE_IMAGE } from "@/lib/utils";
 
 export function AdventureVehicleCard({ vehicle, branding, onSelect }: VehicleCardProps) {
   const isAvailable = vehicle.status === "available";
+  const firstImage = vehicle.images?.[0];
   const rawImage =
-    vehicle.images && vehicle.images.length > 0
-      ? vehicle.images[0].url
-      : DEFAULT_VEHICLE_IMAGE;
+    typeof firstImage === "string"
+      ? firstImage
+      : firstImage?.url || DEFAULT_VEHICLE_IMAGE;
   const primaryImage = getSafeImageUrl(rawImage, DEFAULT_VEHICLE_IMAGE);
 
   return (
@@ -42,6 +43,7 @@ export function AdventureVehicleCard({ vehicle, branding, onSelect }: VehicleCar
           src={primaryImage}
           alt={`${vehicle.brand} ${vehicle.model}`}
           fill
+          unoptimized
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
           className="object-cover transition-transform duration-500 group-hover:scale-105"
         />

@@ -2,6 +2,7 @@
 
 import React from "react";
 import { FooterProps } from "@/lib/themes/types";
+import { PageLinks } from "@/components/storefront/PageLinks";
 import { Award, Mail, Phone, MapPin } from "lucide-react";
 
 export function ClassicFooter({ branding }: FooterProps) {
@@ -69,6 +70,7 @@ export function ClassicFooter({ branding }: FooterProps) {
           <span className="hover:text-[#a89f91] cursor-pointer">Classic Hire Charter</span>
           <span className="hover:text-[#a89f91] cursor-pointer">Vehicle Preservation Rules</span>
           <span className="hover:text-[#a89f91] cursor-pointer">Security Protocol</span>
+          <PageLinks variant="footer" className="hover:text-[#a89f91] transition-colors" />
         </div>
       </div>
     </footer>

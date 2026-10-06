@@ -139,6 +139,7 @@ export default function ThemeCustomizerPage() {
   };
 
 const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: string; fontHeading: string }> = {
+  sajilo: { primaryColor: "#e11d2e", accentColor: "#388ddd", fontHeading: "sans" },
   luxury: { primaryColor: "#D4AF37", accentColor: "#B38F26", fontHeading: "serif" },
   modern: { primaryColor: "#2563EB", accentColor: "#3B82F6", fontHeading: "sans" },
   classic: { primaryColor: "#8B5A2B", accentColor: "#A0522D", fontHeading: "serif" },

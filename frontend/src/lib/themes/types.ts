@@ -37,7 +37,7 @@ export interface ThemeComponents {
   Footer: ComponentType<FooterProps>;
 }
 
-export type ThemeId = "luxury" | "modern" | "classic" | "adventure" | "urban" | "minimal";
+export type ThemeId = "luxury" | "modern" | "classic" | "adventure" | "urban" | "minimal" | "sajilo";
 
 export interface ThemeDefinition {
   id: string;

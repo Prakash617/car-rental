@@ -2,6 +2,7 @@
 
 import React from "react";
 import { FooterProps } from "@/lib/themes/types";
+import { PageLinks } from "@/components/storefront/PageLinks";
 import { Zap, Mail, Phone, MapPin, Radio } from "lucide-react";
 
 export function UrbanFooter({ branding }: FooterProps) {
@@ -73,6 +74,7 @@ export function UrbanFooter({ branding }: FooterProps) {
           <span className="hover:text-slate-400 cursor-pointer">Urban Parking Rules</span>
           <span className="hover:text-slate-400 cursor-pointer">Fair Use Mobility</span>
           <span className="hover:text-slate-400 cursor-pointer">Toll Exemption Guide</span>
+          <PageLinks variant="footer" className="hover:text-slate-400 transition-colors" />
         </div>
       </div>
     </footer>

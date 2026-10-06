@@ -48,6 +48,28 @@ export async function lookupBooking(
   });
 }
 
+/**
+ * Public client-portal lookup. Without an identifier the backend returns the
+ * latest reservations (preview); with a phone/email it filters to that customer.
+ */
+export async function fetchMyBookings(
+  identifier?: string,
+  tenantHost?: string
+): Promise<Booking[]> {
+  const trimmed = identifier?.trim() || "";
+  let query = "";
+  if (trimmed) {
+    query = trimmed.includes("@")
+      ? `?email=${encodeURIComponent(trimmed)}`
+      : `?phone=${encodeURIComponent(trimmed)}`;
+  }
+  return apiFetch<Booking[]>(`/api/v1/bookings/my-bookings/${query}`, {
+    method: "GET",
+    tenantHost,
+    cache: "no-store",
+  });
+}
+
 export async function fetchBookings(
   params?: { status?: string },
   token?: string,

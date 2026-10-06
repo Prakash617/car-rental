@@ -40,6 +40,8 @@ export interface CustomPage {
   slug: string;
   content: string;
   is_published: boolean;
+  show_in_navbar: boolean;
+  show_in_footer: boolean;
   seo_title: string;
   seo_description: string;
   created_at: string;
@@ -51,6 +53,8 @@ export interface CustomPagePayload {
   slug?: string;
   content?: string;
   is_published?: boolean;
+  show_in_navbar?: boolean;
+  show_in_footer?: boolean;
   seo_title?: string;
   seo_description?: string;
 }
@@ -233,6 +237,16 @@ export async function getCustomPageBySlug(
   tenantHost?: string
 ): Promise<CustomPage> {
   return apiFetch<CustomPage>(`/website/pages/${slug}/`, { tenantHost, cache: "no-store" });
+}
+
+/** Fetch every published page (public) — used by storefront navbar/footer link lists */
+export async function getPublishedCustomPages(
+  tenantHost?: string
+): Promise<CustomPage[]> {
+  return apiFetch<CustomPage[]>("/website/pages/", {
+    tenantHost,
+    cache: "no-store",
+  });
 }
 
 /** Create a new custom page (staff auth) */

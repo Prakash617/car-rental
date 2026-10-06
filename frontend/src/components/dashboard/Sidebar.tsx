@@ -19,6 +19,8 @@ import {
   Wrench,
   Globe,
   ShieldCheck,
+  User,
+  Key,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -50,6 +52,11 @@ const mgmtNavItems = [
     label: "Fleet Maintenance",
     href: "/dashboard/maintenance",
     icon: Wrench,
+  },
+  {
+    label: "Branches & Settings",
+    href: "/dashboard/settings",
+    icon: Building2,
   },
 ];
 
@@ -211,6 +218,43 @@ export function Sidebar() {
             </a>
           </div>
         </div>
+
+        {/* Client Portal Shortcuts */}
+        <div>
+          <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            Client Portal & Services
+          </div>
+          <div className="space-y-1">
+            <Link
+              href="/client"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 hover:bg-white/[0.03] hover:text-white transition-colors"
+            >
+              <User className="h-4 w-4 text-zinc-400" />
+              <span>Profile & Bookings</span>
+            </Link>
+            <Link
+              href="/search?trip_type=tour"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 hover:bg-white/[0.03] hover:text-white transition-colors"
+            >
+              <Users className="h-4 w-4 text-zinc-400" />
+              <span>Carpool & Tours</span>
+            </Link>
+            <Link
+              href="/list-your-car"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 hover:bg-white/[0.03] hover:text-white transition-colors"
+            >
+              <Car className="h-4 w-4 text-zinc-400" />
+              <span>Host Your Vehicle</span>
+            </Link>
+            <Link
+              href="/contact"
+              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-zinc-400 hover:bg-white/[0.03] hover:text-white transition-colors"
+            >
+              <HelpCircle className="h-4 w-4 text-zinc-400" />
+              <span>Inquiries & Support</span>
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* Tenancy & User Footer */}
@@ -240,7 +284,7 @@ export function Sidebar() {
             </p>
           </div>
           <button
-            onClick={logout}
+            onClick={() => logout("/")}
             title="Log out"
             className="flex h-8 w-8 items-center justify-center rounded-md border border-white/[0.08] text-zinc-400 transition-colors hover:bg-rose-500/10 hover:text-rose-400 hover:border-rose-500/20"
           >

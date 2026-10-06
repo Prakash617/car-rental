@@ -2,6 +2,7 @@
 
 import React from "react";
 import { FooterProps } from "@/lib/themes/types";
+import { PageLinks } from "@/components/storefront/PageLinks";
 
 export function MinimalFooter({ branding }: FooterProps) {
   return (
@@ -29,7 +30,13 @@ export function MinimalFooter({ branding }: FooterProps) {
 
         <div className="space-y-1">
           <span className="text-zinc-400 block uppercase tracking-widest text-[10px]">Legal</span>
-          <div>Terms / Privacy / Policy</div>
+          <div className="space-y-1">
+            <PageLinks
+              variant="footer"
+              className="text-zinc-500 hover:text-white transition-colors block"
+            />
+            <span className="text-zinc-600">Terms / Privacy / Policy</span>
+          </div>
         </div>
       </div>
 

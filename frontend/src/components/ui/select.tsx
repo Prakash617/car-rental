@@ -15,7 +15,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           className={cn(
             "flex h-10 w-full appearance-none rounded-lg border border-border/60 bg-background/50 px-3 py-2 pr-9 text-sm text-foreground shadow-sm transition-colors",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent",
-            "disabled:cursor-not-allowed disabled:opacity-50",
+            "disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer",
+            "[&>option]:bg-zinc-950 [&>option]:text-zinc-100 [&>option]:py-2",
             error && "border-destructive focus-visible:ring-destructive",
             className
           )}

@@ -18,11 +18,18 @@ export interface Vehicle {
   color: string;
   status: VehicleStatus;
   daily_rate: string;
+  rate_4h?: string | number | null;
+  rate_8h?: string | number | null;
+  fuel_rate_per_km?: string | number | null;
+  is_verified?: boolean;
+  driver_included?: boolean;
+  driver_name?: string;
+  driver_experience?: string;
   weekly_rate?: string | null;
   monthly_rate?: string | null;
   deposit_amount: string;
   features: string[];
-  images?: { url: string; is_primary?: boolean; caption?: string }[];
+  images?: ({ url: string; is_primary?: boolean; caption?: string } | string)[];
   description?: string;
   branch_id?: string;
   branch?: string;
@@ -32,15 +39,40 @@ export interface Vehicle {
 export type BookingStatus = "pending" | "confirmed" | "active" | "completed" | "cancelled" | "rejected";
 export type PaymentStatus = "unpaid" | "partially_paid" | "paid" | "refunded";
 
+export interface BranchRef {
+  id: string;
+  name: string;
+  code?: string;
+  city?: string;
+  address_line1?: string;
+  phone?: string;
+  email?: string;
+}
+
 export interface Booking {
   id: string;
   booking_reference: string;
-  vehicle_id: string;
-  customer_id: string;
-  pickup_branch_id: string;
-  return_branch_id: string;
+  vehicle_id?: string;
+  vehicle?: Vehicle;
+  customer_id?: string;
+  customer?: Customer;
+  pickup_branch_id?: string;
+  return_branch_id?: string;
+  pickup_branch?: BranchRef;
+  return_branch?: BranchRef;
   pickup_datetime: string;
   return_datetime: string;
+  pickup_location?: string;
+  destination_location?: string;
+  stops?: string[];
+  trip_type?: string;
+  decoration_name?: string;
+  decoration_price?: string | number;
+  distance_km?: string | number;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  advance_amount?: string | number;
   status: BookingStatus;
   base_price: string;
   discount_amount: string;
@@ -50,6 +82,7 @@ export interface Booking {
   payment_status: PaymentStatus;
   notes?: string;
   created_at: string;
+  addons?: { id: string; name: string; price: string; quantity: number }[];
 }
 
 export interface TenantBranding {
@@ -62,7 +95,7 @@ export interface TenantBranding {
   support_phone: string;
   currency: string;
   timezone: string;
-  active_theme: "luxury" | "modern" | "classic" | "adventure" | "urban" | "minimal";
+  active_theme: "luxury" | "modern" | "classic" | "adventure" | "urban" | "minimal" | "sajilo";
   // Hero content
   hero_title?: string;
   hero_subtitle?: string;
@@ -158,4 +191,23 @@ export interface ApiResponse<T> {
     message: string;
     details?: unknown;
   };
+}
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  cover_image?: string | null;
+  author_name: string;
+  author_avatar?: string | null;
+  category: string;
+  tags?: string;
+  read_time_minutes: number;
+  is_published: boolean;
+  views_count: number;
+  published_at: string;
+  created_at: string;
+  updated_at: string;
 }

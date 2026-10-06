@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { FooterProps } from "@/lib/themes/types";
 import { Sparkles, Mail, Phone, MapPin, TrendingUp, ShieldCheck } from "lucide-react";
+import { PageLinks } from "@/components/storefront/PageLinks";
 
 export function LuxuryFooter({ branding }: FooterProps) {
   return (
@@ -137,8 +138,9 @@ export function LuxuryFooter({ branding }: FooterProps) {
             Rental Agreements
           </Link>
           <Link href="/pages/rental-requirements" className="hover:text-slate-400 transition-colors">
-            Insurance & Vetting Standards
+            Insurance &amp; Vetting Standards
           </Link>
+          <PageLinks variant="footer" className="hover:text-slate-400 transition-colors" />
         </div>
       </div>
     </footer>

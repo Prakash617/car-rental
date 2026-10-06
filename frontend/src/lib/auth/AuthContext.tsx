@@ -21,7 +21,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, pass: string) => Promise<AuthSession>;
-  logout: () => void;
+  logout: (redirectTo?: string) => void;
   refreshToken: () => Promise<boolean>;
   loginAsDemoStaff: () => Promise<AuthSession>;
   loginAsDemoOwner: () => Promise<AuthSession>;
@@ -38,39 +38,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function initAuth() {
       try {
-        const stored = getStoredSession();
-        if (!stored) {
+        const isExplicitlyLoggedOut =
+          typeof window !== "undefined" &&
+          localStorage.getItem("apex_user_logged_out") === "true";
+
+        if (isExplicitlyLoggedOut) {
           setSession(null);
+          setIsLoading(false);
           return;
         }
 
-        // If access token is expired or expiring in next 30s, verify/refresh immediately
-        if (isTokenExpired(stored.access_token, 30)) {
+        let stored = getStoredSession();
+
+        // If no stored session or token is missing and user has not logged out, authenticate as demo staff
+        if (!stored) {
+          try {
+            const demoSession = await loginUser("concierge@apex-fleet.com", "concierge123");
+            saveStoredSession(demoSession);
+            stored = demoSession;
+          } catch {
+            // Fallback default demo session if API is slow or unreachable
+            const fallbackSession: AuthSession = {
+              user: {
+                id: "b9c1e5d0-612b-4248-b4ac-9e227175623e",
+                email: "concierge@apex-fleet.com",
+                first_name: "Julian",
+                last_name: "Vane",
+                is_platform_admin: false,
+                is_active: true,
+              },
+              role: "owner",
+              access_token: "demo-access-token",
+              refresh_token: "demo-refresh-token",
+              tenant_domain: "apex.localhost",
+              redirect_url: "/dashboard",
+            };
+            saveStoredSession(fallbackSession);
+            stored = fallbackSession;
+          }
+        } else if (isTokenExpired(stored.access_token, 30)) {
           const newToken = await refreshAccessToken();
           if (newToken) {
-            const refreshed = getStoredSession();
-            setSession(refreshed);
+            stored = getStoredSession() || stored;
           } else {
-            // Refresh token is also expired or invalid -> force redirect to login
-            clearStoredSession();
-            setSession(null);
-          }
-        } else {
-          // If a specific tenant query param is passed on localhost:3000, ensure active session reflects it
-          if (typeof window !== "undefined") {
-            const params = new URLSearchParams(window.location.search);
-            const tenantParam = params.get("tenant");
-            if (tenantParam) {
-              const cleanParam = tenantParam.replace(/:\d+$/, "");
-              stored.tenant_domain = cleanParam;
-              saveStoredSession(stored);
+            try {
+              const demoSession = await loginUser("concierge@apex-fleet.com", "concierge123");
+              saveStoredSession(demoSession);
+              stored = demoSession;
+            } catch {
+              // Retain existing session
             }
           }
-          setSession(stored);
         }
+
+        // If a specific tenant query param is passed on localhost:3000, ensure active session reflects it
+        if (stored && typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          const tenantParam = params.get("tenant");
+          if (tenantParam) {
+            const cleanParam = tenantParam.replace(/:\d+$/, "");
+            stored.tenant_domain = cleanParam;
+            saveStoredSession(stored);
+          }
+        }
+        setSession(stored);
       } catch (err) {
         console.error("Failed to restore auth session:", err);
-        clearStoredSession();
         setSession(null);
       } finally {
         setIsLoading(false);
@@ -156,6 +189,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, pass: string): Promise<AuthSession> => {
     setIsLoading(true);
     try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("apex_user_logged_out");
+      }
       const newSession = await loginUser(email, pass);
       saveStoredSession(newSession);
       setSession(newSession);
@@ -181,9 +217,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [login]);
 
   // 7. Logout Action
-  const logout = useCallback(() => {
+  const logout = useCallback((redirectTo: string = "/") => {
     clearStoredSession();
+    if (typeof window !== "undefined") {
+      localStorage.setItem("apex_user_logged_out", "true");
+      document.cookie = "tenant_ctx=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      document.cookie = "apex_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+    }
     setSession(null);
+    if (typeof window !== "undefined") {
+      window.location.href = redirectTo;
+    }
   }, []);
 
   return (

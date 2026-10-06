@@ -39,6 +39,14 @@ export function getSafeImageUrl(
   if (typeof url !== "string") return fallback;
   const trimmed = url.trim();
   if (!trimmed) return fallback;
+
+  // If path is a local backend media upload, resolve to the backend host
+  if (trimmed.startsWith("/media/")) {
+    const rawApi = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const baseHost = rawApi.replace(/\/+$/, "").replace(/\/api\/v1$/, "");
+    return `${baseHost}${trimmed}`;
+  }
+
   if (trimmed.startsWith("/") || trimmed.startsWith("data:")) return trimmed;
   try {
     const parsed = new URL(trimmed);
