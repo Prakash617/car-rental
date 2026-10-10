@@ -52,18 +52,38 @@ export function triggerGoogleOAuth({
   onFallback: () => void;
   setLoading?: (loading: boolean) => void;
 }) {
-  const clientId =
-    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
-    "917746573259-kdmeuhf2oe3us7fmgiqc0bcvojb0qt1o.apps.googleusercontent.com";
+  if (typeof window === "undefined") return;
 
-  if (typeof window !== "undefined" && (window as any).google?.accounts?.oauth2) {
+  const hostname = window.location.hostname.toLowerCase();
+  const isSubdomain =
+    hostname.endsWith(".localhost") &&
+    hostname !== "localhost" &&
+    hostname !== "admin.localhost";
+
+  // When on a tenant subdomain (*.localhost), Google Cloud Console strictly forbids
+  // registering subdomains of localhost. We navigate the current tab smoothly to
+  // the central origin http://localhost:3000/auth/google (authorized in Google Console).
+  // This guarantees EXACTLY ONE popup window (Google's official account chooser).
+  if (isSubdomain) {
+    const tenant = hostname.split(".")[0];
+    const returnTo = window.location.href;
+    const centralPort = window.location.port ? `:${window.location.port}` : "";
+    window.location.href = `http://localhost${centralPort}/auth/google?tenant=${tenant}&return_to=${encodeURIComponent(returnTo)}`;
+    return;
+  }
+
+  // When directly on localhost:3000, trigger Google Identity Services directly in place
+  if ((window as any).google?.accounts?.oauth2) {
     try {
+      const clientId =
+        process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+        "917746573259-kdmeuhf2oe3us7fmgiqc0bcvojb0qt1o.apps.googleusercontent.com";
+
       const client = (window as any).google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: "email profile openid",
         callback: async (tokenResponse: any) => {
           if (tokenResponse?.error) {
-            console.warn("Google OAuth response error:", tokenResponse.error);
             onError(tokenResponse.error_description || tokenResponse.error || "Google authentication was cancelled.");
             return;
           }
@@ -83,21 +103,17 @@ export function triggerGoogleOAuth({
           }
         },
         error_callback: (err: any) => {
-          console.warn("Google token client error:", err);
           onError(err?.message || "Google authorization error. Please try again.");
         },
       });
 
-      // Opens exactly ONE popup directly from Google Identity Services
       client.requestAccessToken({ prompt: "select_account" });
       return;
     } catch (e: any) {
-      console.warn("Error launching Google OAuth client:", e);
       onError(e.message || "Failed to open Google Sign-In.");
       return;
     }
   }
 
-  // Fallback to manual modal if Google Identity Services script failed to load
   onFallback();
 }

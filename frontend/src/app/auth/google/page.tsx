@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { apiFetch } from "@/lib/api/client";
 
-export default function GoogleAuthBridgePage() {
-  const [status, setStatus] = useState<"loading" | "ready" | "authorizing" | "error">("loading");
+function GoogleAuthBridgeContent() {
+  const searchParams = useSearchParams();
+  const tenant = searchParams.get("tenant") || "apex";
+  const returnTo = searchParams.get("return_to");
+
+  const [status, setStatus] = useState<"loading" | "ready" | "authorizing" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const tokenClientRef = useRef<any>(null);
 
@@ -27,6 +33,37 @@ export default function GoogleAuthBridgePage() {
     let checkInterval: NodeJS.Timeout;
     let attempts = 0;
 
+    const handleGoogleToken = async (accessToken: string) => {
+      setStatus("loading");
+      try {
+        const res = await apiFetch<any>("/api/v1/customers/auth/google/", {
+          method: "POST",
+          tenantHost: `${tenant}.localhost:3000`,
+          body: JSON.stringify({ access_token: accessToken }),
+        });
+
+        const customer = res?.customer || res;
+        setStatus("success");
+
+        if (returnTo) {
+          const targetUrl = new URL(returnTo);
+          const rawJson = JSON.stringify(customer);
+          const encoded = btoa(encodeURIComponent(rawJson));
+          targetUrl.searchParams.set("auth_session", encoded);
+          window.location.replace(targetUrl.toString());
+          return;
+        }
+
+        if (window.opener) {
+          window.opener.postMessage({ type: "GOOGLE_AUTH_SUCCESS", customer }, "*");
+          setTimeout(() => window.close(), 300);
+        }
+      } catch (err: any) {
+        setStatus("error");
+        setErrorMessage(err.message || "Failed to complete customer authentication.");
+      }
+    };
+
     const initClient = () => {
       const google = (window as any).google;
       if (google?.accounts?.oauth2) {
@@ -40,46 +77,23 @@ export default function GoogleAuthBridgePage() {
                 const msg = response.error_description || response.error;
                 setStatus("error");
                 setErrorMessage(msg);
-                if (window.opener) {
-                  window.opener.postMessage(
-                    { type: "GOOGLE_AUTH_ERROR", error: msg },
-                    "*"
-                  );
-                }
                 return;
               }
 
               if (response?.access_token) {
-                setStatus("ready");
-                if (window.opener) {
-                  window.opener.postMessage(
-                    {
-                      type: "GOOGLE_AUTH_SUCCESS",
-                      access_token: response.access_token,
-                    },
-                    "*"
-                  );
-                  setTimeout(() => {
-                    window.close();
-                  }, 300);
-                } else {
-                  setErrorMessage("Window opener not detected. You may close this window.");
-                }
+                handleGoogleToken(response.access_token);
               }
             },
             error_callback: (err: any) => {
               const msg = err?.message || "Google authorization error";
               setStatus("error");
               setErrorMessage(msg);
-              if (window.opener) {
-                window.opener.postMessage({ type: "GOOGLE_AUTH_ERROR", error: msg }, "*");
-              }
             },
           });
 
           tokenClientRef.current = client;
           setStatus("ready");
-          // Automatically prompt account picker
+          // Prompt account selector directly in place
           client.requestAccessToken({ prompt: "select_account" });
         } catch (e: any) {
           setStatus("error");
@@ -106,7 +120,7 @@ export default function GoogleAuthBridgePage() {
     return () => {
       if (checkInterval) clearInterval(checkInterval);
     };
-  }, [clientId]);
+  }, [clientId, tenant, returnTo]);
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center font-sans">
@@ -134,13 +148,20 @@ export default function GoogleAuthBridgePage() {
 
         <h1 className="text-lg font-bold text-slate-100">Sign in with Google</h1>
         <p className="text-xs text-slate-400 mt-1.5 mb-6">
-          Authenticating your account securely with Google Identity Services.
+          Authenticating securely for <span className="font-semibold text-slate-200 uppercase">{tenant}</span> rentals.
         </p>
 
         {status === "loading" && (
           <div className="flex flex-col items-center gap-3 py-4">
             <div className="w-7 h-7 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs text-slate-400">Connecting to Google...</span>
+            <span className="text-xs text-slate-400">Verifying credentials with Google...</span>
+          </div>
+        )}
+
+        {status === "success" && (
+          <div className="flex flex-col items-center gap-3 py-4">
+            <div className="w-7 h-7 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs text-emerald-300 font-semibold">Redirecting to your account...</span>
           </div>
         )}
 
@@ -172,7 +193,7 @@ export default function GoogleAuthBridgePage() {
               <span>Click to choose Google Account</span>
             </button>
             <p className="text-[11px] text-slate-400">
-              A popup window should open automatically. Click above if it was blocked.
+              The Google popup should open automatically. Click above if it was blocked.
             </p>
           </div>
         )}
@@ -194,5 +215,19 @@ export default function GoogleAuthBridgePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function GoogleAuthBridgePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+          <div className="w-8 h-8 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <GoogleAuthBridgeContent />
+    </Suspense>
   );
 }

@@ -152,6 +152,26 @@ export default function VehicleDetailPage({ params }: PageProps) {
   useEffect(() => {
     const syncCustomer = () => {
       try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const authSessionParam = urlParams.get("auth_session");
+        if (authSessionParam) {
+          try {
+            const raw = decodeURIComponent(atob(authSessionParam));
+            const incomingCustomer = JSON.parse(raw);
+            if (incomingCustomer?.id) {
+              localStorage.setItem("apex_customer_auth", JSON.stringify(incomingCustomer));
+              localStorage.removeItem("apex_user_logged_out");
+              window.dispatchEvent(new Event("apex_customer_auth_changed"));
+
+              urlParams.delete("auth_session");
+              const cleanSearch = urlParams.toString() ? `?${urlParams.toString()}` : "";
+              window.history.replaceState({}, document.title, window.location.pathname + cleanSearch);
+            }
+          } catch (e) {
+            console.error("Failed to parse auth_session in vehicle page:", e);
+          }
+        }
+
         const stored = localStorage.getItem("apex_customer_auth");
         if (stored) {
           const cust = JSON.parse(stored);
