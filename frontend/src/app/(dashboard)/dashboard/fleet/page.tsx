@@ -428,13 +428,13 @@ export default function FleetManagementPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl flex items-center gap-2.5">
+          <h1 className="text-2xl font-bold tracking-tight dark:text-white text-slate-900 md:text-3xl flex items-center gap-2.5">
             <span>Fleet Inventory</span>
-            <span className="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full bg-white/[0.05] border border-white/[0.08] text-zinc-400">
+            <span className="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full dark:bg-white/[0.05] bg-slate-100 border dark:border-white/[0.08] border-slate-200 dark:text-zinc-400 text-slate-600">
               {vehicles.length} Vehicles
             </span>
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm dark:text-zinc-400 text-slate-500">
             Control vehicle availability, telemetry, and service scheduling across depot branches.
           </p>
         </div>
@@ -444,7 +444,7 @@ export default function FleetManagementPage() {
             <Button
               variant="outline"
               size="sm"
-              className="border-white/[0.08] text-zinc-300 hover:text-white"
+              className="dark:border-white/[0.08] border-slate-200 dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 dark:hover:bg-white/[0.06] hover:bg-slate-100"
             >
               <Settings2 className="h-3.5 w-3.5 mr-1.5" />
               Branches &amp; Settings
@@ -455,7 +455,7 @@ export default function FleetManagementPage() {
             variant="outline"
             size="sm"
             onClick={loadFleet}
-            className="border-white/[0.08] text-zinc-300 hover:text-white"
+            className="dark:border-white/[0.08] border-slate-200 dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 dark:hover:bg-white/[0.06] hover:bg-slate-100"
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Refresh
@@ -472,15 +472,15 @@ export default function FleetManagementPage() {
       </div>
 
       {/* Filter and Search Bar */}
-      <Card className="border-white/[0.08] bg-zinc-950/60 p-4">
+      <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white p-4 shadow-2xs">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div className="sm:col-span-2 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-zinc-500 text-slate-400" />
             <Input
               placeholder="Search by brand, model, or plate (e.g. Porsche, LUX-911)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-black/40 border-white/[0.08] text-sm text-white"
+              className="pl-9 dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-sm dark:text-white text-slate-900 placeholder:text-slate-400"
             />
           </div>
 
@@ -488,7 +488,7 @@ export default function FleetManagementPage() {
             <Select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="bg-black/40 border-white/[0.08] text-sm text-white"
+              className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-sm dark:text-white text-slate-900"
             >
               <option value="all">All Categories</option>
               {categories.map((c) => (
@@ -512,7 +512,7 @@ export default function FleetManagementPage() {
             <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="bg-black/40 border-white/[0.08] text-sm text-white"
+              className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-sm dark:text-white text-slate-900"
             >
               <option value="all">All Statuses</option>
               <option value="available">Available</option>
@@ -526,10 +526,10 @@ export default function FleetManagementPage() {
       </Card>
 
       {/* Vehicle Inventory Table */}
-      <Card className="border-white/[0.08] bg-zinc-950/60 overflow-hidden">
+      <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs overflow-hidden">
         <Table>
-          <TableHeader className="bg-white/[0.02] border-b border-white/[0.06]">
-            <TableRow className="border-none hover:bg-transparent text-[11px] font-mono uppercase text-zinc-400">
+          <TableHeader className="dark:bg-white/[0.02] bg-slate-50/70 border-b dark:border-white/[0.06] border-slate-200">
+            <TableRow className="border-none hover:bg-transparent text-[11px] font-mono uppercase dark:text-zinc-400 text-slate-500">
               <TableHead className="w-[100px]">Asset</TableHead>
               <TableHead>Vehicle Details</TableHead>
               <TableHead>Category</TableHead>
@@ -576,11 +576,11 @@ export default function FleetManagementPage() {
                 return (
                   <TableRow
                     key={vehicle.id}
-                    className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors"
+                    className="border-b dark:border-white/[0.04] border-slate-100 dark:hover:bg-white/[0.02] hover:bg-slate-50/80 transition-colors"
                   >
                     {/* Thumbnail */}
                     <TableCell>
-                      <div className="relative h-14 w-20 overflow-hidden rounded-lg bg-zinc-900 border border-white/[0.08]">
+                      <div className="relative h-14 w-20 overflow-hidden rounded-lg bg-zinc-900 border dark:border-white/[0.08] border-slate-200">
                         <Image
                           src={img}
                           alt={`${vehicle.brand} ${vehicle.model}`}
@@ -594,11 +594,11 @@ export default function FleetManagementPage() {
 
                     {/* Make & Model */}
                     <TableCell>
-                      <div className="font-semibold text-white">
+                      <div className="font-semibold dark:text-white text-slate-900">
                         {vehicle.brand} {vehicle.model}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5">
-                        <span className="px-1.5 py-0.2 rounded bg-white/[0.06] text-white">
+                      <div className="flex items-center gap-2 text-xs dark:text-zinc-400 text-slate-500 font-mono mt-0.5">
+                        <span className="px-1.5 py-0.2 rounded dark:bg-white/[0.06] bg-slate-100 dark:text-white text-slate-800">
                           {vehicle.license_plate}
                         </span>
                         <span>&middot;</span>
@@ -610,26 +610,26 @@ export default function FleetManagementPage() {
 
                     {/* Category */}
                     <TableCell>
-                      <span className="text-xs uppercase tracking-wider font-mono text-zinc-300">
+                      <span className="text-xs uppercase tracking-wider font-mono dark:text-zinc-300 text-slate-600 font-medium">
                         {vehicle.category}
                       </span>
                     </TableCell>
 
                     {/* Branch */}
-                    <TableCell className="text-xs text-zinc-300">
+                    <TableCell className="text-xs dark:text-zinc-300 text-slate-600">
                       {vehicle.branch_name || "Downtown Hub"}
                     </TableCell>
 
                     {/* Rate */}
-                    <TableCell className="font-mono font-medium text-white">
+                    <TableCell className="font-mono font-medium dark:text-white text-slate-900">
                       ${vehicle.daily_rate}
-                      <span className="text-[11px] text-zinc-500 font-normal"> /day</span>
+                      <span className="text-[11px] dark:text-zinc-500 text-slate-400 font-normal"> /day</span>
                     </TableCell>
 
                     {/* Mileage */}
                     <TableCell>
-                      <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
-                        <Gauge className="h-3.5 w-3.5 text-zinc-500" />
+                      <div className="flex items-center gap-1.5 text-xs dark:text-zinc-400 text-slate-500 font-mono">
+                        <Gauge className="h-3.5 w-3.5 dark:text-zinc-500 text-slate-400" />
                         <span>{vehicle.mileage.toLocaleString()} mi</span>
                       </div>
                     </TableCell>
@@ -645,7 +645,7 @@ export default function FleetManagementPage() {
                           onChange={(e) =>
                             handleStatusChange(vehicle.id, e.target.value as VehicleStatus)
                           }
-                          className="text-[11px] font-mono bg-black/60 border border-white/[0.08] rounded px-2 py-1 text-zinc-300 focus:outline-none cursor-pointer hover:border-white/20 transition-colors"
+                          className="text-[11px] font-mono dark:bg-black/60 bg-white border dark:border-white/[0.08] border-slate-200 rounded px-2 py-1 dark:text-zinc-300 text-slate-700 focus:outline-none cursor-pointer hover:border-slate-300 dark:hover:border-white/20 transition-colors"
                         >
                           <option value="available">Available</option>
                           <option value="reserved">Reserved</option>
@@ -663,7 +663,7 @@ export default function FleetManagementPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => openEditModal(vehicle)}
-                          className="h-7 px-2 text-zinc-400 hover:text-white hover:bg-white/[0.06]"
+                          className="h-7 px-2 dark:text-zinc-400 text-slate-500 dark:hover:text-white hover:text-slate-900 dark:hover:bg-white/[0.06] hover:bg-slate-100"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
@@ -672,7 +672,7 @@ export default function FleetManagementPage() {
                           size="sm"
                           disabled={deletingId === vehicle.id || updatingId === vehicle.id}
                           onClick={() => handleDeleteVehicle(vehicle)}
-                          className="h-7 px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                          className="h-7 px-2 text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-500/10"
                         >
                           {deletingId === vehicle.id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -693,17 +693,17 @@ export default function FleetManagementPage() {
       {/* Add Vehicle Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-          <div className="relative w-full max-w-2xl rounded-2xl bg-zinc-950 border border-white/[0.12] p-6 space-y-6 shadow-2xl my-8">
-            <div className="flex items-center justify-between border-b border-white/[0.08] pb-4">
+          <div className="relative w-full max-w-2xl rounded-2xl dark:bg-zinc-950 bg-white border dark:border-white/[0.12] border-slate-200 p-6 space-y-6 shadow-2xl my-8">
+            <div className="flex items-center justify-between border-b dark:border-white/[0.08] border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#D4AF37]/10 border border-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37]">
                   <Car className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white font-serif">
+                  <h3 className="text-base font-bold dark:text-white text-slate-900 font-serif">
                     {editingVehicle ? "Edit Vehicle" : "Add Vehicle to Fleet Catalog"}
                   </h3>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-xs dark:text-zinc-400 text-slate-500">
                     {editingVehicle
                       ? "Update specifications, pricing, depot assignment, and imagery."
                       : "Register a new asset with telemetry, pricing, and high-definition imagery."}
@@ -713,7 +713,7 @@ export default function FleetManagementPage() {
 
               <button
                 onClick={closeVehicleModal}
-                className="text-zinc-500 hover:text-white p-1 text-sm rounded-lg"
+                className="dark:text-zinc-500 text-slate-400 dark:hover:text-white hover:text-slate-800 p-1 text-sm rounded-lg"
               >
                 <X className="w-5 h-5" />
               </button>

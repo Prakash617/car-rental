@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   description: "Enterprise multi-tenant automotive hire platform with dynamic theme engine and real-time fleet availability.",
 };
 
+import Script from "next/script";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/lib/query/QueryProvider";
 
@@ -28,8 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark scroll-smooth">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} bg-black text-slate-100 antialiased selection:bg-[#D4AF37]/30 selection:text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} bg-background text-foreground antialiased selection:bg-[#D4AF37]/30 selection:text-white`}
       >
+        <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
         <QueryProvider>
           {children}
         </QueryProvider>

@@ -159,9 +159,14 @@ export async function apiFetch<T>(endpoint: string, options: RequestOptions = {}
 
     if (!response.ok || !json.success) {
       const code = json.error?.code || `HTTP_${response.status}`;
-      const message = formatErrorMessage(json.error?.message, json.error?.details) || response.statusText || "Request failed";
-      throw new ApiError(message, code, response.status, json.error?.details);
+      const message =
+        (json as any).message ||
+        formatErrorMessage(json.error?.message, json.error?.details || (json as any).errors) ||
+        response.statusText ||
+        "Request failed";
+      throw new ApiError(message, code, response.status, json.error?.details || (json as any).errors);
     }
+
 
     return json.data;
   } catch (error) {

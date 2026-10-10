@@ -15,15 +15,19 @@ import {
   Car,
   Key,
   ChevronDown,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBranding } from "@/lib/context/branding";
+import { useDashboardTheme } from "@/lib/context/dashboard-theme";
 
 export function Topbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, logout, tenantDomain } = useAuth();
+  const { theme, toggleTheme, isLight } = useDashboardTheme();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -70,72 +74,87 @@ export function Topbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-white/[0.08] bg-zinc-950/80 px-4 backdrop-blur-xl md:px-8">
+    <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/80 bg-white/80 px-4 backdrop-blur-xl md:px-8 transition-colors">
       {/* Mobile Drawer Toggle */}
       <div className="flex items-center gap-3 md:hidden">
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className="rounded-lg border border-white/[0.08] p-2 text-zinc-400 hover:text-white"
+          className="rounded-lg border dark:border-white/[0.08] border-slate-200 p-2 dark:text-zinc-400 text-slate-600 dark:hover:text-white hover:text-slate-900"
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
-        <span className="font-bold text-white text-sm truncate max-w-[180px]">
+        <span className="font-bold dark:text-white text-slate-900 text-sm truncate max-w-[180px]">
           {brandingName}
         </span>
       </div>
 
       {/* Tenancy Badge (Desktop) */}
       <div className="hidden items-center gap-3 md:flex">
-        <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-400 font-medium font-mono">
+        <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-500 font-medium font-mono">
           <ShieldCheck className="h-3.5 w-3.5" />
           <span>{tenantDomain ? `${tenantDomain}` : "PostgreSQL Schema-Isolated Tenant"}</span>
         </div>
       </div>
 
       {/* Topbar Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2.5">
+        {/* Light / Dark Mode Toggle Button */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={isLight ? "Switch to Dark Theme" : "Switch to Light Theme"}
+          className="flex items-center justify-center h-8.5 w-8.5 rounded-lg border dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.04] bg-slate-100/80 hover:bg-slate-200/80 dark:hover:bg-white/[0.08] text-slate-700 dark:text-zinc-300 transition-all shadow-2xs"
+          aria-label="Toggle theme mode"
+        >
+          {isLight ? (
+            <Moon className="h-4 w-4 text-slate-700 transition-transform" />
+          ) : (
+            <Sun className="h-4 w-4 text-amber-400 transition-transform hover:rotate-45" />
+          )}
+        </button>
+
         <a
           href={storefrontUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="hidden sm:inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors border border-white/[0.08] rounded-md px-2.5 py-1.5 bg-white/[0.03]"
+          className="hidden sm:inline-flex items-center gap-1.5 text-xs dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 transition-colors border dark:border-white/[0.08] border-slate-200 rounded-lg px-2.5 py-1.5 dark:bg-white/[0.03] bg-slate-100/60 hover:bg-slate-100 dark:hover:bg-white/[0.08]"
         >
           <ExternalLink className="h-3.5 w-3.5" />
           <span>Open Storefront</span>
         </a>
 
-        <div className="h-4 w-px bg-white/[0.08] hidden sm:block" />
+        <div className="h-4 w-px dark:bg-white/[0.08] bg-slate-200 hidden sm:block" />
 
         {/* User Profile Pill with Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button
             type="button"
             onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-            className="flex items-center gap-2 p-1.5 sm:px-2.5 rounded-lg border border-white/[0.08] hover:border-white/20 bg-white/[0.03] hover:bg-white/[0.06] transition-all text-left"
+            className="flex items-center gap-2 p-1.5 sm:px-2.5 rounded-lg border dark:border-white/[0.08] border-slate-200 dark:hover:border-white/20 hover:border-slate-300 dark:bg-white/[0.03] bg-slate-100/60 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-all text-left shadow-2xs"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e11d2e]/20 border border-[#e11d2e]/40 text-[#ff4d5e] text-xs font-bold font-mono">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e11d2e]/15 border border-[#e11d2e]/30 text-[#e11d2e] text-xs font-bold font-mono">
               {user?.first_name?.[0] || "J"}
             </div>
             <div className="hidden sm:block text-left mr-1">
-              <span className="block text-xs font-semibold text-white leading-tight">
+              <span className="block text-xs font-semibold dark:text-white text-slate-900 leading-tight">
                 {user ? `${user.first_name} ${user.last_name}` : "Julian Vane"}
               </span>
-              <span className="block text-[10px] text-zinc-400 uppercase tracking-wider font-mono">
+              <span className="block text-[10px] dark:text-zinc-400 text-slate-500 uppercase tracking-wider font-mono">
                 Staff Concierge
               </span>
             </div>
             <ChevronDown
-              className={`h-3.5 w-3.5 text-zinc-400 transition-transform hidden sm:block ${
-                userDropdownOpen ? "rotate-180 text-white" : ""
+              className={`h-3.5 w-3.5 dark:text-zinc-400 text-slate-500 transition-transform hidden sm:block ${
+                userDropdownOpen ? "rotate-180 dark:text-white text-slate-900" : ""
               }`}
             />
           </button>
 
           {/* User Dropdown Menu */}
           {userDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-64 rounded-xl border border-white/10 bg-zinc-900/95 p-1.5 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in zoom-in-95 duration-100">
-              <div className="px-3 py-2.5 border-b border-white/[0.08]">
-                <p className="text-xs font-bold text-white leading-tight truncate">
+            <div className="absolute right-0 mt-2 w-64 rounded-xl border dark:border-white/10 border-slate-200 dark:bg-zinc-900/95 bg-white p-1.5 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in zoom-in-95 duration-100">
+              <div className="px-3 py-2.5 border-b dark:border-white/[0.08] border-slate-100">
+                <p className="text-xs font-bold dark:text-white text-slate-900 leading-tight truncate">
                   {user ? `${user.first_name} ${user.last_name}` : "Julian Vane"}
                 </p>
                 <p className="text-[11px] text-zinc-400 truncate mt-0.5 font-mono">
@@ -151,25 +170,25 @@ export function Topbar() {
                       key={item.label}
                       href={item.href}
                       onClick={() => setUserDropdownOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors"
                     >
-                      <Icon className="h-4 w-4 text-zinc-400" />
+                      <Icon className="h-4 w-4 dark:text-zinc-400 text-slate-500" />
                       <span>{item.label}</span>
                     </Link>
                   );
                 })}
               </div>
 
-              <div className="pt-1 border-t border-white/[0.08]">
+              <div className="pt-1 border-t dark:border-white/[0.08] border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
                     setUserDropdownOpen(false);
                     logout("/");
                   }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-rose-500 hover:text-rose-600 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-500/10 transition-colors text-left"
                 >
-                  <LogOut className="h-4 w-4 text-rose-400" />
+                  <LogOut className="h-4 w-4 text-rose-500 dark:text-rose-400" />
                   <span>Logout</span>
                 </button>
               </div>
@@ -180,49 +199,49 @@ export function Topbar() {
 
       {/* Mobile Drawer Dropdown */}
       {mobileOpen && (
-        <div className="absolute top-16 left-0 right-0 border-b border-white/[0.08] bg-zinc-950 p-4 md:hidden flex flex-col gap-2 shadow-2xl max-h-[calc(100vh-4rem)] overflow-y-auto">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 px-3 pt-1">
+        <div className="absolute top-16 left-0 right-0 border-b dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950 bg-white p-4 md:hidden flex flex-col gap-2 shadow-2xl max-h-[calc(100vh-4rem)] overflow-y-auto">
+          <div className="text-[11px] font-semibold uppercase tracking-wider dark:text-zinc-500 text-slate-400 px-3 pt-1">
             Dashboard Navigation
           </div>
           <Link
             href="/dashboard"
             onClick={() => setMobileOpen(false)}
-            className="px-3 py-2 text-sm text-zinc-300 hover:text-white rounded-md hover:bg-white/[0.05]"
+            className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Overview
           </Link>
           <Link
             href="/dashboard/fleet"
             onClick={() => setMobileOpen(false)}
-            className="px-3 py-2 text-sm text-zinc-300 hover:text-white rounded-md hover:bg-white/[0.05]"
+            className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Fleet Inventory
           </Link>
           <Link
             href="/dashboard/bookings"
             onClick={() => setMobileOpen(false)}
-            className="px-3 py-2 text-sm text-zinc-300 hover:text-white rounded-md hover:bg-white/[0.05]"
+            className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Reservations
           </Link>
           <Link
             href="/dashboard/customers"
             onClick={() => setMobileOpen(false)}
-            className="px-3 py-2 text-sm text-zinc-300 hover:text-white rounded-md hover:bg-white/[0.05]"
+            className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Customer Directory
           </Link>
           <Link
             href="/dashboard/theme"
             onClick={() => setMobileOpen(false)}
-            className="px-3 py-2 text-sm text-zinc-300 hover:text-white rounded-md hover:bg-white/[0.05]"
+            className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Theme &amp; Branding
           </Link>
 
-          <div className="border-t border-white/[0.08] my-1" />
+          <div className="border-t dark:border-white/[0.08] border-slate-200 my-1" />
 
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 px-3 pt-1">
+          <div className="text-[11px] font-semibold uppercase tracking-wider dark:text-zinc-500 text-slate-400 px-3 pt-1">
             Account &amp; Client Portal
           </div>
           {clientDropdownItems.map((item) => {
@@ -232,15 +251,15 @@ export function Topbar() {
                 key={item.label}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
-                className="px-3 py-2 text-sm text-zinc-300 hover:text-white rounded-md hover:bg-white/[0.05] flex items-center gap-2.5"
+                className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100 flex items-center gap-2.5"
               >
-                <Icon className="h-4 w-4 text-zinc-400" />
+                <Icon className="h-4 w-4 dark:text-zinc-400 text-slate-500" />
                 <span>{item.label}</span>
               </Link>
             );
           })}
 
-          <div className="pt-2 border-t border-white/[0.08] flex justify-between items-center">
+          <div className="pt-2 border-t dark:border-white/[0.08] border-slate-200 flex justify-between items-center">
             <a
               href={`http://${(tenantDomain || "apex.localhost").replace(/:\d+$/, "")}:3000`}
               target="_blank"
@@ -255,7 +274,7 @@ export function Topbar() {
                 logout("/");
                 setMobileOpen(false);
               }}
-              className="text-xs text-rose-400 flex items-center gap-1 hover:text-rose-300"
+              className="text-xs text-rose-500 dark:text-rose-400 flex items-center gap-1 hover:text-rose-600 dark:hover:text-rose-300"
             >
               <LogOut className="h-3.5 w-3.5" />
               <span>Logout</span>

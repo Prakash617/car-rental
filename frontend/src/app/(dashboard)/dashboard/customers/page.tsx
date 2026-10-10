@@ -94,10 +94,10 @@ export default function CustomersDirectoryPage() {
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+          <h1 className="text-2xl font-bold tracking-tight dark:text-white text-slate-900 md:text-3xl">
             Customer Directory
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm dark:text-zinc-400 text-slate-500">
             Verify driver credentials, contact profiles, and rental eligibility.
           </p>
         </div>
@@ -107,7 +107,7 @@ export default function CustomersDirectoryPage() {
             variant="outline"
             size="sm"
             onClick={loadCustomers}
-            className="border-white/[0.08] text-zinc-300 hover:text-white"
+            className="dark:border-white/[0.08] border-slate-200 dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 dark:hover:bg-white/[0.06] hover:bg-slate-100"
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Refresh
@@ -124,20 +124,20 @@ export default function CustomersDirectoryPage() {
       </div>
 
       {/* Search Bar */}
-      <Card className="border-white/[0.08] bg-zinc-950/60 p-4">
+      <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white p-4 shadow-2xs">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-zinc-500 text-slate-400" />
           <Input
             placeholder="Search by customer name, email, or driver license (e.g. Bruce, DL-GOTHAM)..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 bg-black/40 border-white/[0.08] text-sm text-white"
+            className="pl-9 dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-sm dark:text-white text-slate-900 placeholder:text-slate-400"
           />
         </div>
       </Card>
 
       {/* Customers Table */}
-      <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+      <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs overflow-hidden">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-6 space-y-4">
@@ -152,33 +152,33 @@ export default function CustomersDirectoryPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow className="border-white/[0.06] hover:bg-transparent">
-                  <TableHead className="text-zinc-400 text-xs">Customer</TableHead>
-                  <TableHead className="text-zinc-400 text-xs">Contact Info</TableHead>
-                  <TableHead className="text-zinc-400 text-xs">Driver License</TableHead>
-                  <TableHead className="text-zinc-400 text-xs">License Expiry</TableHead>
-                  <TableHead className="text-zinc-400 text-xs">Status</TableHead>
-                  <TableHead className="text-zinc-400 text-xs text-right">Registered</TableHead>
+                <TableRow className="dark:border-white/[0.06] border-slate-100 hover:bg-transparent bg-slate-50/70 dark:bg-white/[0.02]">
+                  <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">Customer</TableHead>
+                  <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">Contact Info</TableHead>
+                  <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">Driver License</TableHead>
+                  <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">License Expiry</TableHead>
+                  <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">Status</TableHead>
+                  <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold text-right">Registered</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredCustomers.map((c) => (
                   <TableRow
                     key={c.id}
-                    className="border-white/[0.06] hover:bg-white/[0.02] cursor-pointer"
+                    className="dark:border-white/[0.06] border-slate-100 dark:hover:bg-white/[0.02] hover:bg-slate-50/80 cursor-pointer"
                     onClick={() => setSelectedCustomer(c)}
                   >
                     {/* Customer */}
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.05] border border-white/[0.08] font-bold text-xs text-white">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full dark:bg-white/[0.05] bg-slate-100 border dark:border-white/[0.08] border-slate-200 font-bold text-xs dark:text-white text-slate-800">
                           {c.first_name[0]}{c.last_name[0]}
                         </div>
                         <div>
-                          <span className="font-semibold text-white text-sm block">
+                          <span className="font-semibold dark:text-white text-slate-900 text-sm block">
                             {c.first_name} {c.last_name}
                           </span>
-                          <span className="text-[11px] text-zinc-500 font-mono">
+                          <span className="text-[11px] dark:text-zinc-500 text-slate-400 font-mono">
                             Country: {c.country}
                           </span>
                         </div>
@@ -188,14 +188,14 @@ export default function CustomersDirectoryPage() {
                     {/* Contact */}
                     <TableCell>
                       <div className="text-xs space-y-0.5">
-                        <div className="flex items-center gap-1.5 text-zinc-300">
-                          <Mail className="h-3 w-3 text-zinc-500" />
+                        <div className="flex items-center gap-1.5 dark:text-zinc-300 text-slate-700">
+                          <Mail className="h-3 w-3 dark:text-zinc-500 text-slate-400" />
                           <a href={`mailto:${c.email}`} className="hover:underline">
                             {c.email}
                           </a>
                         </div>
-                        <div className="flex items-center gap-1.5 text-zinc-400 font-mono text-[11px]">
-                          <Phone className="h-3 w-3 text-zinc-500" />
+                        <div className="flex items-center gap-1.5 dark:text-zinc-400 text-slate-500 font-mono text-[11px]">
+                          <Phone className="h-3 w-3 dark:text-zinc-500 text-slate-400" />
                           <span>{c.phone}</span>
                         </div>
                       </div>
@@ -203,14 +203,14 @@ export default function CustomersDirectoryPage() {
 
                     {/* Driver License */}
                     <TableCell>
-                      <span className="inline-block px-2.5 py-1 rounded bg-black/60 border border-white/[0.12] font-mono text-xs font-semibold text-zinc-200">
+                      <span className="inline-block px-2.5 py-1 rounded dark:bg-black/60 bg-slate-100 border dark:border-white/[0.12] border-slate-200 font-mono text-xs font-semibold dark:text-zinc-200 text-slate-800">
                         {c.driver_license_number}
                       </span>
                     </TableCell>
 
                     {/* Expiry */}
                     <TableCell>
-                      <span className="font-mono text-xs text-zinc-300">
+                      <span className="font-mono text-xs dark:text-zinc-300 text-slate-700">
                         {c.license_expiry_date}
                       </span>
                     </TableCell>
@@ -221,7 +221,7 @@ export default function CustomersDirectoryPage() {
                     </TableCell>
 
                     {/* Registration Date */}
-                    <TableCell className="text-right font-mono text-xs text-zinc-400">
+                    <TableCell className="text-right font-mono text-xs dark:text-zinc-400 text-slate-500">
                       {new Date(c.created_at).toLocaleDateString()}
                     </TableCell>
                   </TableRow>
@@ -235,10 +235,10 @@ export default function CustomersDirectoryPage() {
       {/* CUSTOMER DETAIL MODAL */}
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <Card className="max-w-md w-full border-white/[0.12] bg-zinc-950 p-6 shadow-2xl relative">
+          <Card className="max-w-md w-full dark:border-white/[0.12] border-slate-200 dark:bg-zinc-950 bg-white p-6 shadow-2xl relative">
             <button
               onClick={() => setSelectedCustomer(null)}
-              className="absolute right-4 top-4 text-zinc-400 hover:text-white"
+              className="absolute right-4 top-4 dark:text-zinc-400 text-slate-400 dark:hover:text-white hover:text-slate-800"
             >
               ✕
             </button>
@@ -248,43 +248,43 @@ export default function CustomersDirectoryPage() {
                   {selectedCustomer.first_name[0]}{selectedCustomer.last_name[0]}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white">
+                  <h3 className="text-base font-bold dark:text-white text-slate-900">
                     {selectedCustomer.first_name} {selectedCustomer.last_name}
                   </h3>
-                  <span className="text-zinc-500 font-mono text-[11px]">
+                  <span className="dark:text-zinc-500 text-slate-400 font-mono text-[11px]">
                     ID: {selectedCustomer.id}
                   </span>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/[0.08]">
+              <div className="grid grid-cols-2 gap-3 pt-3 border-t dark:border-white/[0.08] border-slate-100">
                 <div>
-                  <span className="text-zinc-500 block">Email Address</span>
-                  <span className="text-zinc-200 font-mono mt-0.5 block">{selectedCustomer.email}</span>
+                  <span className="dark:text-zinc-500 text-slate-500 block">Email Address</span>
+                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.email}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block">Phone</span>
-                  <span className="text-zinc-200 font-mono mt-0.5 block">{selectedCustomer.phone}</span>
+                  <span className="dark:text-zinc-500 text-slate-500 block">Phone</span>
+                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.phone}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block">Driver License</span>
-                  <span className="text-zinc-200 font-mono mt-0.5 block">{selectedCustomer.driver_license_number}</span>
+                  <span className="dark:text-zinc-500 text-slate-500 block">Driver License</span>
+                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.driver_license_number}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block">License Expiry</span>
-                  <span className="text-zinc-200 font-mono mt-0.5 block">{selectedCustomer.license_expiry_date}</span>
+                  <span className="dark:text-zinc-500 text-slate-500 block">License Expiry</span>
+                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.license_expiry_date}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block">Date of Birth</span>
-                  <span className="text-zinc-200 font-mono mt-0.5 block">{selectedCustomer.date_of_birth}</span>
+                  <span className="dark:text-zinc-500 text-slate-500 block">Date of Birth</span>
+                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.date_of_birth}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block">Country</span>
-                  <span className="text-zinc-200 font-mono mt-0.5 block">{selectedCustomer.country}</span>
+                  <span className="dark:text-zinc-500 text-slate-500 block">Country</span>
+                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.country}</span>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between">
+              <div className="pt-2 border-t dark:border-white/[0.08] border-slate-100 flex items-center justify-between">
                 <div>
                   <span className="text-zinc-500 block">Verification Status</span>
                   <div className="mt-1">

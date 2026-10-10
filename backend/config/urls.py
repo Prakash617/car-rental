@@ -7,7 +7,15 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.platform.platform_users.views import CurrentUserView, LoginView
 from apps.tenant.bookings.views import BookingViewSet, QuoteView
 from apps.tenant.branches.views import BranchViewSet
-from apps.tenant.customers.views import CustomerViewSet
+from apps.tenant.customers.views import (
+    CustomerChangePasswordView,
+    CustomerGoogleAuthView,
+    CustomerLoginView,
+    CustomerSignupView,
+    CustomerUpdateProfileView,
+    CustomerViewSet,
+)
+
 from apps.tenant.memberships.views import AcceptInviteView, InviteMemberView, TeamMemberListView
 from apps.tenant.pricing.views import (
     CouponViewSet,
@@ -68,6 +76,13 @@ urlpatterns = [
     path("api/v1/team/", TeamMemberListView.as_view(), name="team_list"),
     path("api/v1/team/invite/", InviteMemberView.as_view(), name="team_invite"),
     path("api/v1/team/accept-invite/", AcceptInviteView.as_view(), name="team_accept_invite"),
+    # Customer Auth for Tenant Storefronts
+    path("api/v1/customers/auth/signup/", CustomerSignupView.as_view(), name="customer_signup"),
+    path("api/v1/customers/auth/login/", CustomerLoginView.as_view(), name="customer_login"),
+    path("api/v1/customers/auth/google/", CustomerGoogleAuthView.as_view(), name="customer_google_auth"),
+    path("api/v1/customers/auth/change-password/", CustomerChangePasswordView.as_view(), name="customer_change_password"),
+    path("api/v1/customers/auth/profile/", CustomerUpdateProfileView.as_view(), name="customer_update_profile"),
+
     # Website & Themes
     path("api/v1/website/config/", PublicWebsiteConfigView.as_view(), name="website_config_public"),
     path("api/v1/dashboard/theme/", ManageWebsiteConfigView.as_view(), name="dashboard_theme"),

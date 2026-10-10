@@ -26,17 +26,20 @@ export default async function HomePage({ searchParams }: PageProps) {
   const rawPreview =
     resolvedSearchParams.theme_preview || resolvedSearchParams.preview_theme;
   const previewThemeId = typeof rawPreview === "string" ? rawPreview : null;
+  const tenantQuery =
+    typeof resolvedSearchParams.tenant === "string" ? resolvedSearchParams.tenant : null;
 
   // Resolve tenant configuration vs Platform Root vs Super-Admin Host
-  const resolution = await resolveTenant(host, previewThemeId);
+  const resolution = await resolveTenant(host, previewThemeId, tenantQuery);
 
   // 1. If accessing Superuser Host (admin.localhost), render Super-Admin Portal directly
   if (resolution.isAdmin) {
     return <PlatformSuperAdminPage />;
   }
 
-  // 2. If explicitly requesting Platform management launchpad
-  if (resolvedSearchParams.view === "platform") {
+  // 2. If accessing Root SaaS Platform Domain (localhost:3000 / platform.localhost)
+  // without an explicit tenant override, render the Platform Marketing Portal & Super-Admin Launchpad
+  if ((resolution.isPlatform && !tenantQuery) || resolvedSearchParams.view === "platform") {
     return (
       <>
         <SessionRedirect />
@@ -45,7 +48,7 @@ export default async function HomePage({ searchParams }: PageProps) {
     );
   }
 
-  // 2. If accessing a Tenant Subdomain (e.g. apex.localhost:3000) or Custom Domain
+  // 3. If accessing a Tenant Subdomain (e.g. apex.localhost:3000) or Custom Domain (or explicit ?tenant=)
   // render that specific tenant's branded customer storefront
   const { branding, isPreview } = resolution;
 
@@ -62,7 +65,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   // Fetch live FAQ items for this tenant
   let faqs: import("@/lib/api/dashboard").FAQItem[] = [];
   try {
-    faqs = await getPublicFAQs(host);
+    faqs = await getPublicFAQs(resolution.hostname);
   } catch {
     // FAQs are optional
   }
@@ -70,7 +73,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   // Fetch live vehicles for this tenant schema
   let vehicles: Vehicle[] = [];
   try {
-    vehicles = await fetchVehicles(undefined, host);
+    vehicles = await fetchVehicles(undefined, resolution.hostname);
   } catch {
     vehicles = [];
   }

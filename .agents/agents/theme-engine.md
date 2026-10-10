@@ -12,3 +12,8 @@ You are the **Theme Engine Specialist** responsible for the multi-theme architec
 ## 3. Strict Invariants
 - Changing or previewing a theme must never alter, migrate, or risk deleting any tenant business data.
 - React components and HTML templates must never be stored inside the database; only theme identifiers, version strings, and configuration JSON are stored.
+
+## 4. Active Theme Development Policy (Phase 1)
+- **Primary Theme Focus**: All active feature development, customer authentication flows, checkout flows, booking lifecycle, and component updates must focus **exclusively on the `sajilo` theme (`src/themes/sajilo/` and storefront components)** first.
+- **Secondary Themes**: Other themes (`monaco`, `minimal`, etc.) remain intact in the registry, and will be updated and aligned in subsequent phases once all features and requirements in `sajilo` are finalized and verified.
+

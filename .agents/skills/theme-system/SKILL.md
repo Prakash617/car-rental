@@ -34,3 +34,8 @@ export default async function TenantHomePage({ params }: { params: { tenant: str
 When previewing a theme:
 - The preview engine must read from ephemeral session parameters (`?theme_preview=modern`) rather than mutating the database.
 - The preview banner provides a visual sandbox with "Activate for Tenant" and "Exit Preview" controls.
+
+## 4. Current Development Mandate: Sajilo Theme First
+- **Strict Development Focus**: All current storefront features, client dashboard components, customer authentication flows, and vehicle reservation interactions are to be developed, styled, and verified strictly against the **Sajilo** theme (`src/themes/sajilo/`).
+- **Subsequent Theme Updates**: Other themes (`monaco`, `minimal`, etc.) will be brought up to feature parity and updated in subsequent development phases.
+

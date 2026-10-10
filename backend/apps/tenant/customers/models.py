@@ -13,6 +13,7 @@ class Customer(models.Model):
     last_name = models.CharField("Last Name", max_length=60)
     email = models.EmailField("Email Address", max_length=255)
     phone = models.CharField("Phone Number", max_length=30)
+    password_hash = models.CharField("Password Hash", max_length=128, blank=True, default="")
 
     driver_license_number = models.CharField("Driver's License Number", max_length=50, blank=True, default="CHAUFFEUR-BOOKING")
     license_expiry_date = models.DateField("License Expiry Date", null=True, blank=True)
@@ -22,6 +23,17 @@ class Customer(models.Model):
     is_verified = models.BooleanField("Identity Verified", default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def set_password(self, raw_password: str):
+        from django.contrib.auth.hashers import make_password
+        self.password_hash = make_password(raw_password)
+
+    def check_password(self, raw_password: str) -> bool:
+        from django.contrib.auth.hashers import check_password
+        if not self.password_hash:
+            return True
+        return check_password(raw_password, self.password_hash)
+
 
     class Meta:
         verbose_name = "Customer"

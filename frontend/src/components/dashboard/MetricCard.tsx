@@ -26,7 +26,7 @@ export function MetricCard({
   return (
     <Card
       className={cn(
-        "relative overflow-hidden border border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl transition-all hover:border-white/[0.16]",
+        "relative overflow-hidden border dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl transition-all hover:border-slate-300 dark:hover:border-white/[0.16]",
         highlight && "border-primary/40 bg-primary/[0.03]"
       )}
     >
@@ -35,7 +35,7 @@ export function MetricCard({
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/80">
             {title}
           </p>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.08] bg-white/[0.03] text-foreground">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg border dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.03] bg-slate-100 text-foreground">
             <Icon className="h-4 w-4 text-muted-foreground" />
           </div>
         </div>

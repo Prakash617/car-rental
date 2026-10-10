@@ -17,9 +17,17 @@ export function SessionRedirect() {
     const refreshDead = isTokenExpired(session.refresh_token, 0);
     if (accessDead && refreshDead) return;
 
+    const host = window.location.host.split(":")[0].toLowerCase();
+    // On tenant subdomains (e.g. apex.localhost), NEVER hijack the customer storefront.
+    // The storefront belongs strictly to the tenant and its customers.
+    if (host !== "localhost" && host !== "127.0.0.1" && host !== "admin.localhost") {
+      return;
+    }
+
     const params = new URLSearchParams(window.location.search);
     // Never hijack admin theme previews — they must stay on the storefront
     if (params.get("theme_preview") || params.get("preview_theme")) return;
+
 
     let target = session.redirect_url || "/dashboard";
     try {

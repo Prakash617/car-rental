@@ -43,13 +43,34 @@ export function Navbar({ branding }: NavbarProps) {
   const brandFirst = brandParts[0] || "Apex";
   const brandRest = brandParts.slice(1).join(" ") || "Rentals";
 
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [customerUser, setCustomerUser] = useState<{
+    id?: string;
+    first_name?: string;
+    last_name?: string;
+    full_name?: string;
+    email?: string;
+  } | null>(null);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const isLoggedOut = localStorage.getItem("apex_user_logged_out") === "true";
-      setIsLoggedIn(!isLoggedOut);
-    }
+    const syncAuth = () => {
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("apex_customer_auth");
+          if (stored) {
+            setCustomerUser(JSON.parse(stored));
+          } else {
+            setCustomerUser(null);
+          }
+        } catch {
+          setCustomerUser(null);
+        }
+      }
+    };
+    syncAuth();
+    window.addEventListener("apex_customer_auth_changed", syncAuth);
+    return () => {
+      window.removeEventListener("apex_customer_auth_changed", syncAuth);
+    };
   }, []);
 
   const handleLogout = (e?: React.MouseEvent) => {
@@ -57,19 +78,13 @@ export function Navbar({ branding }: NavbarProps) {
     setUserDropdownOpen(false);
     setMobileMenuOpen(false);
     if (typeof window !== "undefined") {
-      localStorage.removeItem("apex_saas_auth_session");
+      localStorage.removeItem("apex_customer_auth");
       localStorage.setItem("apex_user_logged_out", "true");
-      document.cookie = "tenant_ctx=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-      document.cookie = "apex_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+      window.dispatchEvent(new Event("apex_customer_auth_changed"));
       window.location.href = "/";
     }
   };
 
-  const handleSignIn = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("apex_user_logged_out");
-    }
-  };
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -304,27 +319,21 @@ export function Navbar({ branding }: NavbarProps) {
             {/* Thin Vertical Divider */}
             <span className="h-6 w-px bg-slate-200 mx-1" />
 
-            {/* User Profile Pill ("Super") OR Sign In Buttons */}
-            {isLoggedIn ? (
+            {/* User Profile Pill OR Sign In Buttons */}
+            {customerUser ? (
               <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2.5 pl-1.5 pr-3 py-1 rounded-full border border-slate-300 hover:border-slate-400 transition-all bg-white shadow-2xs group"
+                  className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border border-slate-300 hover:border-slate-400 transition-all bg-white shadow-2xs group cursor-pointer"
                 >
-                  {/* Avatar with image graphic */}
-                  <div className="w-7 h-7 rounded-full overflow-hidden shrink-0 border border-slate-200">
-                    <Image
-                      src="/avatar-superbang.png"
-                      alt="Super Bang"
-                      width={28}
-                      height={28}
-                      className="w-full h-full object-cover"
-                    />
+                  {/* Initials Avatar */}
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-rose-500 to-red-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                    {(customerUser.first_name?.[0] || customerUser.full_name?.[0] || "C").toUpperCase()}
                   </div>
 
                   <span className="text-sm font-semibold text-slate-800 group-hover:text-black">
-                    Super
+                    {customerUser.first_name || customerUser.full_name?.split(" ")[0] || "Client"}
                   </span>
 
                   <ChevronDown
@@ -338,9 +347,11 @@ export function Navbar({ branding }: NavbarProps) {
                 {userDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl border border-slate-200/90 shadow-2xl py-3 z-50 text-[13.5px] text-slate-800 space-y-0.5">
                     <div className="px-5 py-2">
-                      <span className="font-bold text-slate-900 text-sm block">Super Bang</span>
+                      <span className="font-bold text-slate-900 text-sm block">
+                        {customerUser.full_name || `${customerUser.first_name || ""} ${customerUser.last_name || ""}`.trim() || "Client Member"}
+                      </span>
                       <span className="text-xs text-slate-500 font-normal block mt-0.5">
-                        superbang617@gmail.com
+                        {customerUser.email || ""}
                       </span>
                     </div>
 
@@ -417,7 +428,6 @@ export function Navbar({ branding }: NavbarProps) {
               <div className="flex items-center gap-2">
                 <Link
                   href="/client"
-                  onClick={handleSignIn}
                   className="px-3.5 py-1.5 rounded-full border border-slate-300 hover:border-slate-400 text-xs font-bold text-slate-800 hover:bg-slate-50 transition-colors"
                 >
                   Sign In
@@ -430,6 +440,7 @@ export function Navbar({ branding }: NavbarProps) {
                 </Link>
               </div>
             )}
+
 
             {/* Desktop Hamburger / Drawer Trigger */}
             <button
@@ -524,23 +535,17 @@ export function Navbar({ branding }: NavbarProps) {
           {/* Scrollable Body */}
           <div className="flex-1 overflow-y-auto">
             {/* User Profile Card Banner */}
-            {isLoggedIn ? (
+            {customerUser ? (
               <div className="bg-[#fff8f9] border-b border-pink-100/70 px-5 py-4 flex items-center gap-3.5">
-                <div className="relative w-13 h-13 rounded-full overflow-hidden shrink-0 ring-2 ring-pink-200/90 shadow-2xs">
-                  <Image
-                    src="/avatar-superbang.png"
-                    alt="Super Bang"
-                    width={52}
-                    height={52}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-rose-500 to-red-600 text-white font-extrabold text-base flex items-center justify-center shrink-0 ring-2 ring-pink-200/90 shadow-2xs">
+                  {(customerUser.first_name?.[0] || customerUser.full_name?.[0] || "C").toUpperCase()}
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-bold text-slate-900 text-[15px] tracking-tight truncate leading-tight">
-                    Super Bang
+                    {customerUser.full_name || `${customerUser.first_name || ""} ${customerUser.last_name || ""}`.trim() || "Client Member"}
                   </span>
                   <span className="text-xs text-slate-500 truncate mt-1 font-normal">
-                    superbang617@gmail.com
+                    {customerUser.email || ""}
                   </span>
                 </div>
               </div>
@@ -552,15 +557,16 @@ export function Navbar({ branding }: NavbarProps) {
                 </div>
                 <div className="flex items-center gap-2">
                   <Link
-                    href="/login"
+                    href="/client"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="px-3 py-1.5 rounded-lg bg-[#e11d2e] text-white text-xs font-semibold hover:bg-[#c91827] transition-colors"
+                    className="px-3 py-1.5 rounded-lg bg-[#e11d2e] text-white text-xs font-semibold hover:bg-[#c91827] transition-colors cursor-pointer"
                   >
                     Sign In
                   </Link>
                 </div>
               </div>
             )}
+
 
             {/* Section 1: Red Accent Links */}
             <div className="px-3 pt-3 pb-2 space-y-0.5">
@@ -593,7 +599,7 @@ export function Navbar({ branding }: NavbarProps) {
             <div className="border-t border-slate-100 my-1 mx-4" />
 
             {/* Section 2: Dark Slate Links */}
-            {isLoggedIn ? (
+            {customerUser ? (
               <div className="px-3 pt-2 pb-8 space-y-0.5">
                 {drawerSectionTwo.map((item) => {
                   const Icon = item.icon;
@@ -606,7 +612,7 @@ export function Navbar({ branding }: NavbarProps) {
                           setMobileMenuOpen(false);
                           handleLogout();
                         }}
-                        className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium text-red-600 hover:bg-red-50/70 transition-colors text-left"
+                        className="w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium text-red-600 hover:bg-red-50/70 transition-colors text-left cursor-pointer"
                       >
                         <Icon className="w-5 h-5 text-red-600 shrink-0" />
                         <span>{item.label}</span>
@@ -629,7 +635,7 @@ export function Navbar({ branding }: NavbarProps) {
             ) : (
               <div className="px-3 pt-2 pb-8">
                 <Link
-                  href="/login"
+                  href="/client"
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-[#e11d2e] text-white font-semibold text-sm shadow-xs hover:bg-[#c91827] transition-colors"
                 >
@@ -638,6 +644,7 @@ export function Navbar({ branding }: NavbarProps) {
                 </Link>
               </div>
             )}
+
           </div>
         </aside>
       </div>

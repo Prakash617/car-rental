@@ -8,12 +8,20 @@ export function middleware(request: NextRequest) {
 
   // Enforce architectural boundary:
   // Subdomains (*.localhost) are STRICTLY and EXCLUSIVELY for the tenant's public website.
-  // The central operations dashboard and platform onboarding/login belong exclusively on http://localhost:3000.
-  if (
-    (pathname.startsWith("/dashboard") || pathname === "/login" || pathname === "/onboard") &&
+  // The central operations dashboard and platform onboarding belong exclusively on http://localhost:3000.
+  const isSubdomain =
     cleanHost.endsWith(".localhost") &&
     cleanHost !== "localhost" &&
-    cleanHost !== "admin.localhost"
+    cleanHost !== "admin.localhost";
+
+  if (isSubdomain && pathname === "/login" && request.nextUrl.searchParams.get("role") !== "staff") {
+    // Tenant storefront customer authentication lives at /client
+    return NextResponse.redirect(new URL("/client", request.url));
+  }
+
+  if (
+    isSubdomain &&
+    (pathname.startsWith("/dashboard") || pathname === "/onboard" || (pathname === "/login" && request.nextUrl.searchParams.get("role") === "staff"))
   ) {
     const targetUrl = new URL(pathname, "http://localhost:3000");
     targetUrl.search = search;
@@ -21,6 +29,7 @@ export function middleware(request: NextRequest) {
       targetUrl.searchParams.set("tenant", cleanHost);
     }
     const finalUrl = targetUrl.toString();
+
 
     // Use HTML meta-refresh and script navigation to avoid Next.js dev server normalizing
     // cross-subdomain localhost Location headers into relative paths

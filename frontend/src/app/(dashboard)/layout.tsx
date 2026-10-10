@@ -9,6 +9,9 @@ import { TenantBranding } from "@/types";
 import { apiFetch } from "@/lib/api/client";
 import { Loader2 } from "lucide-react";
 
+import { DashboardThemeProvider, useDashboardTheme } from "@/lib/context/dashboard-theme";
+import { cn } from "@/lib/utils";
+
 const FALLBACK_BRANDING: TenantBranding = {
   name: "Apex Luxury Concierge",
   logo_url: "",
@@ -27,6 +30,7 @@ const FALLBACK_BRANDING: TenantBranding = {
 function DashboardContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, tenantDomain } = useAuth();
   const [branding, setBranding] = useState<TenantBranding>(FALLBACK_BRANDING);
+  const { isLight } = useDashboardTheme();
 
   // Dynamically load the current tenant's branding & website CMS configuration
   useEffect(() => {
@@ -57,11 +61,37 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
   return (
     <BrandingProvider branding={branding}>
       <div
-        className="min-h-screen bg-black text-zinc-100 antialiased font-sans selection:bg-primary/30"
+        className={cn(
+          "min-h-screen antialiased font-sans transition-colors duration-200",
+          isLight
+            ? "light bg-slate-50 text-slate-900 selection:bg-primary/20"
+            : "dark bg-[#07080d] text-zinc-100 selection:bg-primary/30"
+        )}
         style={
           {
             "--brand-primary": branding.primary_color,
             "--brand-accent": branding.accent_color,
+            ...(isLight
+              ? {
+                  "--background": "#f8fafc",
+                  "--foreground": "#0f172a",
+                  "--card": "#ffffff",
+                  "--card-foreground": "#0f172a",
+                  "--border": "#e2e8f0",
+                  "--input": "#cbd5e1",
+                  "--muted": "#f1f5f9",
+                  "--muted-foreground": "#64748b",
+                }
+              : {
+                  "--background": "#07080d",
+                  "--foreground": "#fafafa",
+                  "--card": "#0b0c12",
+                  "--card-foreground": "#fafafa",
+                  "--border": "rgba(255, 255, 255, 0.1)",
+                  "--input": "rgba(255, 255, 255, 0.12)",
+                  "--muted": "#18181b",
+                  "--muted-foreground": "#a1a1aa",
+                }),
           } as React.CSSProperties
         }
       >
@@ -130,7 +160,9 @@ export default function DashboardLayout({
 
   return (
     <AuthProvider>
-      <DashboardContent>{children}</DashboardContent>
+      <DashboardThemeProvider>
+        <DashboardContent>{children}</DashboardContent>
+      </DashboardThemeProvider>
     </AuthProvider>
   );
 }

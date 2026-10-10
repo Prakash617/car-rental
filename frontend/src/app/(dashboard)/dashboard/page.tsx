@@ -72,14 +72,14 @@ export default function DashboardOverviewPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+            <h1 className="text-2xl font-bold tracking-tight dark:text-white text-slate-900 md:text-3xl">
               Operations Control
             </h1>
-            <span className="rounded-md border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[11px] font-mono text-zinc-400">
+            <span className="rounded-md border dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.04] bg-slate-100 px-2 py-0.5 text-[11px] font-mono dark:text-zinc-400 text-slate-600">
               Live MVP
             </span>
           </div>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm dark:text-zinc-400 text-slate-500">
             Real-time fleet telemetry, bookings ledger, and schema-isolated multi-tenant operations.
           </p>
         </div>
@@ -90,7 +90,7 @@ export default function DashboardOverviewPage() {
             size="sm"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="border-white/[0.08] bg-white/[0.02] text-zinc-300 hover:bg-white/[0.06] hover:text-white"
+            className="dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.02] bg-slate-100 dark:text-zinc-300 text-slate-700 dark:hover:bg-white/[0.06] hover:bg-slate-200 dark:hover:text-white hover:text-slate-900"
           >
             <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? "animate-spin" : ""}`} />
             Refresh
@@ -108,7 +108,7 @@ export default function DashboardOverviewPage() {
           </Link>
 
           <Link href="/" target="_blank">
-            <Button size="sm" className="bg-white text-black hover:bg-zinc-200">
+            <Button size="sm" className="bg-primary text-black font-semibold hover:bg-primary/90">
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
               View Storefront
             </Button>
@@ -120,7 +120,7 @@ export default function DashboardOverviewPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {isLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i} className="border-white/[0.08] bg-zinc-950/60 p-6">
+            <Card key={i} className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs p-6">
               <Skeleton className="h-4 w-24 mb-4" />
               <Skeleton className="h-8 w-32" />
             </Card>
@@ -160,13 +160,13 @@ export default function DashboardOverviewPage() {
       {/* Middle Two-Column Grid: Reservations & Fleet Status */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: Recent Bookings Table (2 cols) */}
-        <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl lg:col-span-2">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <div>
-              <CardTitle className="text-base font-semibold text-white">
+              <CardTitle className="text-base font-semibold dark:text-white text-slate-900">
                 Recent Reservations
               </CardTitle>
-              <p className="text-xs text-zinc-400 mt-0.5">
+              <p className="text-xs dark:text-zinc-400 text-slate-500 mt-0.5">
                 Current bookings managed across all tenant depot hubs.
               </p>
             </div>
@@ -192,21 +192,21 @@ export default function DashboardOverviewPage() {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="border-white/[0.06] hover:bg-transparent">
-                    <TableHead className="text-zinc-400 text-xs">Reference</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Dates</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Status</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Payment</TableHead>
-                    <TableHead className="text-zinc-400 text-xs text-right">Amount</TableHead>
+                  <TableRow className="dark:border-white/[0.06] border-slate-100 hover:bg-transparent bg-slate-50/70 dark:bg-white/[0.02]">
+                    <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">Reference</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">Dates</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">Status</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold">Payment</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-500 text-xs font-semibold text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {recentBookings.map((bk) => (
-                    <TableRow key={bk.id} className="border-white/[0.06]">
-                      <TableCell className="font-mono text-xs font-semibold text-white">
+                    <TableRow key={bk.id} className="dark:border-white/[0.06] border-slate-100 dark:hover:bg-white/[0.02] hover:bg-slate-50/80">
+                      <TableCell className="font-mono text-xs font-semibold dark:text-white text-slate-900">
                         {bk.booking_reference}
                       </TableCell>
-                      <TableCell className="text-xs text-zinc-300 font-mono">
+                      <TableCell className="text-xs dark:text-zinc-300 text-slate-700 font-mono">
                         {new Date(bk.pickup_datetime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                         {" → "}
                         {new Date(bk.return_datetime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -217,7 +217,7 @@ export default function DashboardOverviewPage() {
                       <TableCell>
                         <StatusBadge type="payment" status={bk.payment_status} />
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs font-semibold text-emerald-400">
+                      <TableCell className="text-right font-mono text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                         ${Number(bk.total_price).toLocaleString("en-US", { minimumFractionDigits: 2 })}
                       </TableCell>
                     </TableRow>
@@ -231,25 +231,25 @@ export default function DashboardOverviewPage() {
         {/* Right: Fleet Health & Quick Controls */}
         <div className="space-y-6">
           {/* Fleet Status Breakdown */}
-          <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+          <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold text-white">
+              <CardTitle className="text-base font-semibold dark:text-white text-slate-900">
                 Fleet Distribution
               </CardTitle>
-              <p className="text-xs text-zinc-400 mt-0.5">
+              <p className="text-xs dark:text-zinc-400 text-slate-500 mt-0.5">
                 Real-time allocation across tenant branches.
               </p>
             </CardHeader>
             <CardContent className="space-y-4 pt-1">
               <div>
                 <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-zinc-300 flex items-center gap-1.5">
+                  <span className="dark:text-zinc-300 text-slate-700 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                     Available Fleet
                   </span>
-                  <span className="font-mono text-white font-semibold">{availableFleet}</span>
+                  <span className="font-mono dark:text-white text-slate-900 font-semibold">{availableFleet}</span>
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
+                <div className="h-1.5 w-full rounded-full dark:bg-zinc-800 bg-slate-100 overflow-hidden">
                   <div
                     className="h-full bg-emerald-500 rounded-full"
                     style={{ width: `${(availableFleet / totalFleet) * 100}%` }}
@@ -259,13 +259,13 @@ export default function DashboardOverviewPage() {
 
               <div>
                 <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-zinc-300 flex items-center gap-1.5">
+                  <span className="dark:text-zinc-300 text-slate-700 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-blue-500" />
                     On Active Rental
                   </span>
-                  <span className="font-mono text-white font-semibold">{rentedFleet}</span>
+                  <span className="font-mono dark:text-white text-slate-900 font-semibold">{rentedFleet}</span>
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
+                <div className="h-1.5 w-full rounded-full dark:bg-zinc-800 bg-slate-100 overflow-hidden">
                   <div
                     className="h-full bg-blue-500 rounded-full"
                     style={{ width: `${(rentedFleet / totalFleet) * 100}%` }}
@@ -275,13 +275,13 @@ export default function DashboardOverviewPage() {
 
               <div>
                 <div className="flex justify-between text-xs mb-1.5">
-                  <span className="text-zinc-300 flex items-center gap-1.5">
+                  <span className="dark:text-zinc-300 text-slate-700 flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    Service & Inspection
+                    Service &amp; Inspection
                   </span>
-                  <span className="font-mono text-white font-semibold">{maintenanceFleet}</span>
+                  <span className="font-mono dark:text-white text-slate-900 font-semibold">{maintenanceFleet}</span>
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
+                <div className="h-1.5 w-full rounded-full dark:bg-zinc-800 bg-slate-100 overflow-hidden">
                   <div
                     className="h-full bg-amber-500 rounded-full"
                     style={{ width: `${(maintenanceFleet / totalFleet) * 100}%` }}
@@ -289,9 +289,9 @@ export default function DashboardOverviewPage() {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-white/[0.08]">
+              <div className="pt-2 border-t dark:border-white/[0.08] border-slate-100">
                 <Link href="/dashboard/fleet">
-                  <Button variant="outline" size="sm" className="w-full text-xs border-white/[0.08] hover:bg-white/[0.05]">
+                  <Button variant="outline" size="sm" className="w-full text-xs dark:border-white/[0.08] border-slate-200 dark:hover:bg-white/[0.05] hover:bg-slate-100 dark:text-zinc-300 text-slate-700">
                     Manage Fleet Inventory
                   </Button>
                 </Link>
@@ -300,40 +300,40 @@ export default function DashboardOverviewPage() {
           </Card>
 
           {/* Quick Actions Card */}
-          <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+          <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold text-white">
+              <CardTitle className="text-base font-semibold dark:text-white text-slate-900">
                 Tenant Shortcuts
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <Link href="/dashboard/fleet" className="block">
-                <div className="flex items-center justify-between p-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] transition-colors">
+                <div className="flex items-center justify-between p-2.5 rounded-lg border dark:border-white/[0.06] border-slate-200 dark:bg-white/[0.02] bg-slate-50 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors">
                   <div className="flex items-center gap-2.5">
                     <Car className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-medium text-zinc-200">Switch Vehicle Status</span>
+                    <span className="text-xs font-medium dark:text-zinc-200 text-slate-800">Switch Vehicle Status</span>
                   </div>
-                  <ArrowUpRight className="h-3.5 w-3.5 text-zinc-500" />
+                  <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400" />
                 </div>
               </Link>
 
               <Link href="/dashboard/theme" className="block">
-                <div className="flex items-center justify-between p-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] transition-colors">
+                <div className="flex items-center justify-between p-2.5 rounded-lg border dark:border-white/[0.06] border-slate-200 dark:bg-white/[0.02] bg-slate-50 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors">
                   <div className="flex items-center gap-2.5">
-                    <Palette className="h-4 w-4 text-purple-400" />
-                    <span className="text-xs font-medium text-zinc-200">Live Branding Engine</span>
+                    <Palette className="h-4 w-4 text-purple-500" />
+                    <span className="text-xs font-medium dark:text-zinc-200 text-slate-800">Live Branding Engine</span>
                   </div>
-                  <ArrowUpRight className="h-3.5 w-3.5 text-zinc-500" />
+                  <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400" />
                 </div>
               </Link>
 
               <Link href="/dashboard/customers" className="block">
-                <div className="flex items-center justify-between p-2.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.06] transition-colors">
+                <div className="flex items-center justify-between p-2.5 rounded-lg border dark:border-white/[0.06] border-slate-200 dark:bg-white/[0.02] bg-slate-50 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors">
                   <div className="flex items-center gap-2.5">
-                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                    <span className="text-xs font-medium text-zinc-200">Verify Driver Licenses</span>
+                    <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                    <span className="text-xs font-medium dark:text-zinc-200 text-slate-800">Verify Driver Licenses</span>
                   </div>
-                  <ArrowUpRight className="h-3.5 w-3.5 text-zinc-500" />
+                  <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400" />
                 </div>
               </Link>
             </CardContent>

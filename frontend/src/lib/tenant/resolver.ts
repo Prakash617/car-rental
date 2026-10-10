@@ -42,7 +42,7 @@ export function isSuperAdminHost(hostname: string): boolean {
  */
 export function isPlatformRoot(hostname: string): boolean {
   const clean = hostname.split(":")[0].toLowerCase();
-  return clean === "localhost" || clean === "127.0.0.1";
+  return clean === "localhost" || clean === "127.0.0.1" || clean === "platform.localhost";
 }
 
 /**
@@ -53,7 +53,7 @@ export function extractTenantSubdomain(hostname: string): string | null {
   const clean = hostname.split(":")[0].toLowerCase();
   if (clean.endsWith(".localhost")) {
     const sub = clean.slice(0, -".localhost".length);
-    if (sub !== "admin" && sub !== "www") {
+    if (sub !== "admin" && sub !== "www" && sub !== "platform") {
       return sub;
     }
   }
@@ -92,11 +92,18 @@ export function resolveTenantHost(
  */
 export async function resolveTenant(
   hostnameHeader?: string | null,
-  previewParam?: string | null
+  previewParam?: string | null,
+  tenantOverride?: string | null
 ): Promise<TenantResolution> {
-  const hostname = hostnameHeader || "localhost:3000";
+  let hostname = hostnameHeader || "localhost:3000";
+
+  if (tenantOverride && (isPlatformRoot(hostname) || isSuperAdminHost(hostname))) {
+    const cleanTenant = tenantOverride.replace(/:\d+$/, "");
+    hostname = cleanTenant.includes(".") ? `${cleanTenant}:3000` : `${cleanTenant}.localhost:3000`;
+  }
+
   const isAdmin = isSuperAdminHost(hostname);
-  const isPlatform = isPlatformRoot(hostname) || isAdmin;
+  const isPlatform = !tenantOverride && (isPlatformRoot(hostname) || isAdmin);
   const subdomain = extractTenantSubdomain(hostname);
 
   // Check if live preview mode is triggered via ephemeral query param

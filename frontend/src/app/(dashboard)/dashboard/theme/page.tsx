@@ -163,14 +163,14 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
-              Theme & Branding Engine
+            <h1 className="text-2xl font-bold tracking-tight dark:text-white text-slate-900 md:text-3xl">
+              Theme &amp; Branding Engine
             </h1>
             <span className="rounded-md border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] font-mono text-purple-400">
               Live CMS
             </span>
           </div>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm dark:text-zinc-400 text-slate-500">
             Customize the storefront look and feel without modifying fleet data or backend schemas.
           </p>
         </div>
@@ -198,7 +198,7 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
           <Link
             href={`/?theme_preview=${activeTheme}`}
             target="_blank"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-md bg-white/[0.05] border border-white/[0.1] text-white hover:bg-white/[0.1] transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-md dark:bg-white/[0.05] bg-slate-100 border dark:border-white/[0.1] border-slate-200 dark:text-white text-slate-700 dark:hover:bg-white/[0.1] hover:bg-slate-200 transition-colors"
           >
             <Eye className="h-3.5 w-3.5" />
             <span>Live Sandbox Preview</span>
@@ -222,14 +222,14 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
 
       <form onSubmit={handleSave} className="space-y-8">
         {/* 1. Theme Preset Selector */}
-        <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <CardTitle className="text-base font-semibold text-white flex items-center gap-2">
+              <CardTitle className="text-base font-semibold dark:text-white text-slate-900 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <span>Select Active Storefront Theme</span>
               </CardTitle>
-              <CardDescription className="text-xs text-zinc-400">
+              <CardDescription className="text-xs dark:text-zinc-400 text-slate-500">
                 Choose from 6 engineered automotive aesthetics tailored for luxury and mobility.
               </CardDescription>
             </div>
@@ -266,12 +266,12 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
                     className={`relative cursor-pointer rounded-xl border p-4 transition-all flex flex-col justify-between ${
                       isSelected
                         ? "border-primary bg-primary/[0.08] shadow-lg ring-1 ring-primary/40"
-                        : "border-white/[0.08] bg-zinc-900/40 hover:border-white/[0.2] hover:bg-zinc-900/80"
+                        : "dark:border-white/[0.08] border-slate-200 dark:bg-zinc-900/40 bg-slate-50 dark:hover:border-white/[0.2] hover:border-slate-300 dark:hover:bg-zinc-900/80 hover:bg-slate-100"
                     }`}
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-bold text-sm text-white">{def.name}</span>
+                        <span className="font-bold text-sm dark:text-white text-slate-900">{def.name}</span>
                         {isCurrentlyActive ? (
                           <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold">
                             <CheckCircle2 className="w-3 h-3" /> Live
@@ -282,25 +282,25 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
                           </span>
                         ) : null}
                       </div>
-                      <p className="text-xs text-zinc-400 leading-relaxed mb-3">
+                      <p className="text-xs dark:text-zinc-400 text-slate-500 leading-relaxed mb-3">
                         {def.description}
                       </p>
                       {THEME_PRESET_CONFIG[id] && (
-                        <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400 mb-4">
+                        <div className="flex items-center gap-2 text-[11px] font-mono dark:text-zinc-400 text-slate-500 mb-4">
                           <span
-                            className="inline-block h-3.5 w-3.5 rounded-full border border-white/20"
+                            className="inline-block h-3.5 w-3.5 rounded-full border dark:border-white/20 border-slate-300"
                             style={{ backgroundColor: THEME_PRESET_CONFIG[id].primaryColor }}
                           />
                           <span>{THEME_PRESET_CONFIG[id].primaryColor}</span>
-                          <span className="text-zinc-600">•</span>
+                          <span className="dark:text-zinc-600 text-slate-400">•</span>
                           <span className="capitalize">{THEME_PRESET_CONFIG[id].fontHeading}</span>
                         </div>
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between mt-auto">
+                    <div className="pt-3 border-t dark:border-white/[0.06] border-slate-200 flex items-center justify-between mt-auto">
                       {isCurrentlyActive ? (
-                        <span className="text-[11px] font-medium text-emerald-400 flex items-center gap-1">
+                        <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Active on Storefront
                         </span>
                       ) : (
@@ -312,7 +312,7 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
                           className={`text-xs h-7 px-3 font-semibold ${
                             isSelected
                               ? "bg-primary text-black hover:bg-primary/90"
-                              : "bg-white/10 hover:bg-white/20 text-white"
+                              : "dark:bg-white/10 bg-slate-200 dark:hover:bg-white/20 hover:bg-slate-300 dark:text-white text-slate-800"
                           }`}
                         >
                           <Sparkles className="w-3 h-3 mr-1" />
@@ -325,18 +325,18 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
               })}
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/[0.08] bg-white/[0.02] rounded-b-xl px-6 py-4">
+          <CardFooter className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t dark:border-white/[0.08] border-slate-100 dark:bg-white/[0.02] bg-slate-50/70 rounded-b-xl px-6 py-4">
             <div className="flex flex-wrap items-center gap-2.5">
-              <span className="text-xs text-zinc-400">Selected Theme:</span>
-              <span className="text-xs font-bold text-white px-2.5 py-1 rounded-md bg-primary/20 border border-primary/40 text-primary">
+              <span className="text-xs dark:text-zinc-400 text-slate-500">Selected Theme:</span>
+              <span className="text-xs font-bold dark:text-white text-slate-900 px-2.5 py-1 rounded-md bg-primary/20 border border-primary/40 text-primary">
                 {THEME_DEFINITIONS[activeTheme]?.name || activeTheme}
               </span>
               {persistedTheme === activeTheme ? (
-                <span className="text-xs text-emerald-400 flex items-center gap-1 font-medium">
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Currently Active on Storefront
                 </span>
               ) : (
-                <span className="text-xs text-amber-400 font-mono">
+                <span className="text-xs text-amber-500 dark:text-amber-400 font-mono">
                   (Click Save Theme to apply permanently)
                 </span>
               )}
@@ -356,7 +356,7 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-2" />
-                  Save & Set Active Theme
+                  Save &amp; Set Active Theme
                 </>
               )}
             </Button>
@@ -364,19 +364,20 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
         </Card>
 
         {/* 2. Color Palette & Identity */}
-        <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+        {/* 2. Color Palette & Identity */}
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-white flex items-center gap-2">
+            <CardTitle className="text-base font-semibold dark:text-white text-slate-900 flex items-center gap-2">
               <Palette className="h-4 w-4 text-primary" />
               <span>Brand Color Tuning</span>
             </CardTitle>
-            <CardDescription className="text-xs text-zinc-400">
+            <CardDescription className="text-xs dark:text-zinc-400 text-slate-500">
               Fine-tune your brand colors. CSS variables automatically bind to buttons and badges.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <div>
-              <label className="text-xs font-medium text-zinc-300 block mb-1.5">
+              <label className="text-xs font-medium dark:text-zinc-300 text-slate-700 block mb-1.5">
                 Primary Brand Color (HEX)
               </label>
               <div className="flex items-center gap-3">
@@ -384,18 +385,18 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
                   type="color"
                   value={primaryColor}
                   onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="h-10 w-14 cursor-pointer rounded border border-white/[0.1] bg-transparent p-0.5"
+                  className="h-10 w-14 cursor-pointer rounded border dark:border-white/[0.1] border-slate-200 bg-transparent p-0.5"
                 />
                 <Input
                   value={primaryColor}
                   onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="font-mono text-xs uppercase bg-black/40 border-white/[0.08] text-white"
+                  className="font-mono text-xs uppercase dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 dark:text-white text-slate-900"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-xs font-medium text-zinc-300 block mb-1.5">
+              <label className="text-xs font-medium dark:text-zinc-300 text-slate-700 block mb-1.5">
                 Accent Highlight Color (HEX)
               </label>
               <div className="flex items-center gap-3">
@@ -403,12 +404,12 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
                   type="color"
                   value={accentColor}
                   onChange={(e) => setAccentColor(e.target.value)}
-                  className="h-10 w-14 cursor-pointer rounded border border-white/[0.1] bg-transparent p-0.5"
+                  className="h-10 w-14 cursor-pointer rounded border dark:border-white/[0.1] border-slate-200 bg-transparent p-0.5"
                 />
                 <Input
                   value={accentColor}
                   onChange={(e) => setAccentColor(e.target.value)}
-                  className="font-mono text-xs uppercase bg-black/40 border-white/[0.08] text-white"
+                  className="font-mono text-xs uppercase dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 dark:text-white text-slate-900"
                 />
               </div>
             </div>
@@ -416,64 +417,64 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
         </Card>
 
         {/* 3. Hero Copywriting & Support Details */}
-        <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
           <CardHeader>
-            <CardTitle className="text-base font-semibold text-white flex items-center gap-2">
+            <CardTitle className="text-base font-semibold dark:text-white text-slate-900 flex items-center gap-2">
               <Type className="h-4 w-4 text-primary" />
-              <span>Storefront Copywriting & Concierge Contacts</span>
+              <span>Storefront Copywriting &amp; Concierge Contacts</span>
             </CardTitle>
-            <CardDescription className="text-xs text-zinc-400">
+            <CardDescription className="text-xs dark:text-zinc-400 text-slate-500">
               Tailor customer messaging on the public homepage.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-zinc-300 block mb-1.5">
+              <label className="text-xs font-medium dark:text-zinc-300 text-slate-700 block mb-1.5">
                 Homepage Hero Title
               </label>
               <Input
                 value={heroTitle}
                 onChange={(e) => setHeroTitle(e.target.value)}
-                className="bg-black/40 border-white/[0.08] text-sm text-white"
+                className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-sm dark:text-white text-slate-900"
               />
             </div>
 
             <div>
-              <label className="text-xs font-medium text-zinc-300 block mb-1.5">
+              <label className="text-xs font-medium dark:text-zinc-300 text-slate-700 block mb-1.5">
                 Homepage Hero Subtitle
               </label>
               <Input
                 value={heroSubtitle}
                 onChange={(e) => setHeroSubtitle(e.target.value)}
-                className="bg-black/40 border-white/[0.08] text-sm text-zinc-300"
+                className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-sm dark:text-zinc-300 text-slate-700"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2">
               <div>
-                <label className="text-xs font-medium text-zinc-300 block mb-1.5">
+                <label className="text-xs font-medium dark:text-zinc-300 text-slate-700 block mb-1.5">
                   Support Email
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-zinc-500 text-slate-400" />
                   <Input
                     value={supportEmail}
                     onChange={(e) => setSupportEmail(e.target.value)}
-                    className="pl-9 bg-black/40 border-white/[0.08] text-xs text-white"
+                    className="pl-9 dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-xs dark:text-white text-slate-900"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-xs font-medium text-zinc-300 block mb-1.5">
+                <label className="text-xs font-medium dark:text-zinc-300 text-slate-700 block mb-1.5">
                   Support Phone Number
                 </label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 dark:text-zinc-500 text-slate-400" />
                   <Input
                     value={supportPhone}
                     onChange={(e) => setSupportPhone(e.target.value)}
-                    className="pl-9 bg-black/40 border-white/[0.08] text-xs text-white"
+                    className="pl-9 dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-xs dark:text-white text-slate-900"
                   />
                 </div>
               </div>
@@ -482,12 +483,12 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
         </Card>
 
         {/* Form Actions */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/[0.08]">
+        <div className="flex items-center justify-end gap-3 pt-4 border-t dark:border-white/[0.08] border-slate-200">
           <Link href={`/?theme_preview=${activeTheme}`} target="_blank">
             <Button
               type="button"
               variant="outline"
-              className="border-white/[0.1] text-zinc-300 hover:text-white"
+              className="dark:border-white/[0.1] border-slate-200 dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 dark:hover:bg-white/[0.06] hover:bg-slate-100"
             >
               <Eye className="h-4 w-4 mr-1.5" />
               Preview Changes
