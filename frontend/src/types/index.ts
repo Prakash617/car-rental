@@ -119,6 +119,9 @@ export interface DashboardOverview {
   pending_revenue: string;
   maintenance_active_jobs: number;
   maintenance_overdue_services: number;
+  carpool_active_rides?: number;
+  carpool_total_requests?: number;
+  carpool_alert_subscribers?: number;
 }
 
 export interface Customer {
@@ -186,6 +189,20 @@ export interface CarpoolRide {
 export interface CarpoolBookingRequest {
   id: string;
   ride: string;
+  ride_details?: {
+    id: string;
+    origin_city: string;
+    origin_point: string;
+    destination_city: string;
+    destination_point: string;
+    departure_datetime: string;
+    vehicle_model: string;
+    vehicle_type: string;
+    driver_name: string;
+    driver_phone: string;
+    price_per_seat: string;
+    status: string;
+  };
   passenger_name: string;
   passenger_phone: string;
   passenger_email?: string;
@@ -193,7 +210,7 @@ export interface CarpoolBookingRequest {
   pickup_point?: string;
   dropoff_point?: string;
   total_amount: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "cancelled";
   notes?: string;
   created_at: string;
 }

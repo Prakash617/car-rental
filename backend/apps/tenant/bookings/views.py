@@ -477,7 +477,15 @@ class CarpoolRideViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             for r in default_rides:
                 CarpoolRide.objects.create(**r)
 
-        qs = CarpoolRide.objects.filter(status__in=["active", "full"]).order_by("departure_datetime")
+        include_all = self.request.query_params.get("all") in ["true", "1", "True"]
+        status_filter = self.request.query_params.get("status")
+
+        if include_all:
+            qs = CarpoolRide.objects.all().order_by("-departure_datetime")
+        elif status_filter:
+            qs = CarpoolRide.objects.filter(status=status_filter).order_by("-departure_datetime")
+        else:
+            qs = CarpoolRide.objects.filter(status__in=["active", "full"]).order_by("departure_datetime")
 
         # Query filters
         origin = self.request.query_params.get("from") or self.request.query_params.get("origin_city")
@@ -674,5 +682,105 @@ class CarpoolRideViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             data=CarpoolRideSerializer(ride).data,
             message=f"Shared ride from {origin_city} to {destination_city} published successfully!",
             status_code=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=["get"], url_path="requests", permission_classes=[AllowAny])
+    def list_requests(self, request):
+        """
+        List seat booking requests, optionally filtered by phone or email or ride_id.
+        """
+        qs = CarpoolBookingRequest.objects.select_related("ride").all().order_by("-created_at")
+        phone = request.query_params.get("phone")
+        email = request.query_params.get("email")
+        ride_id = request.query_params.get("ride_id")
+        req_status = request.query_params.get("status")
+
+        if phone:
+            qs = qs.filter(passenger_phone__icontains=phone.strip())
+        if email:
+            qs = qs.filter(passenger_email__iexact=email.strip())
+        if ride_id:
+            qs = qs.filter(ride_id=ride_id)
+        if req_status:
+            qs = qs.filter(status=req_status)
+
+        return self.success_response(
+            data=CarpoolBookingRequestSerializer(qs, many=True).data,
+            message="Carpool booking requests retrieved",
+        )
+
+    @action(detail=False, methods=["post"], url_path=r"requests/(?P<req_id>[^/.]+)/status", permission_classes=[AllowAny])
+    def update_request_status(self, request, req_id=None):
+        """
+        Update status of a seat booking request (pending, approved, rejected, cancelled).
+        """
+        req_obj = CarpoolBookingRequest.objects.select_related("ride").filter(id=req_id).first()
+        if not req_obj:
+            return self.error_response(message="Booking request not found", status_code=status.HTTP_404_NOT_FOUND)
+
+        new_status = request.data.get("status")
+        if new_status not in ["pending", "approved", "rejected", "cancelled"]:
+            return self.error_response(message=f"Invalid status '{new_status}'", status_code=status.HTTP_400_BAD_REQUEST)
+
+        old_status = req_obj.status
+        req_obj.status = new_status
+        req_obj.save(update_fields=["status"])
+
+        # If transitioning to rejected or cancelled, restore remaining seats
+        if new_status in ["rejected", "cancelled"] and old_status not in ["rejected", "cancelled"]:
+            ride = req_obj.ride
+            ride.available_seats = min(ride.total_seats, ride.available_seats + req_obj.seats_requested)
+            if ride.status == "full" and ride.available_seats > 0:
+                ride.status = "active"
+            ride.save(update_fields=["available_seats", "status"])
+        elif new_status == "approved" and old_status in ["rejected", "cancelled"]:
+            ride = req_obj.ride
+            ride.available_seats = max(0, ride.available_seats - req_obj.seats_requested)
+            if ride.available_seats == 0:
+                ride.status = "full"
+            ride.save(update_fields=["available_seats", "status"])
+
+        return self.success_response(
+            data=CarpoolBookingRequestSerializer(req_obj).data,
+            message=f"Request status updated to '{new_status}'",
+        )
+
+    @action(detail=False, methods=["get"], url_path="subscriptions", permission_classes=[AllowAny])
+    def list_subscriptions(self, request):
+        """
+        List all route alert subscriptions for route planning.
+        """
+        qs = CarpoolAlertSubscription.objects.all().order_by("-created_at")
+        return self.success_response(
+            data=CarpoolAlertSubscriptionSerializer(qs, many=True).data,
+            message="Route alert subscriptions retrieved",
+        )
+
+    @action(detail=True, methods=["post"], url_path="update-status", permission_classes=[AllowAny])
+    def update_status(self, request, pk=None):
+        """
+        Update carpool departure status (active, full, completed, cancelled).
+        """
+        ride = self.get_object()
+        new_status = request.data.get("status")
+        if new_status not in ["active", "full", "completed", "cancelled"]:
+            return self.error_response(message=f"Invalid ride status '{new_status}'", status_code=status.HTTP_400_BAD_REQUEST)
+        ride.status = new_status
+        ride.save(update_fields=["status"])
+        return self.success_response(
+            data=CarpoolRideSerializer(ride).data,
+            message=f"Ride status changed to {new_status}",
+        )
+
+    @action(detail=True, methods=["delete", "post"], url_path="delete-ride", permission_classes=[AllowAny])
+    def delete_ride(self, request, pk=None):
+        """
+        Delete a carpool departure.
+        """
+        ride = self.get_object()
+        ride.delete()
+        return self.success_response(
+            data={"id": str(pk)},
+            message="Ride deleted successfully",
         )
 

@@ -12,6 +12,7 @@ import {
   Palette,
   ExternalLink,
   ShieldCheck,
+  Route,
 } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
@@ -117,9 +118,9 @@ export default function DashboardOverviewPage() {
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
+          Array.from({ length: 5 }).map((_, i) => (
             <Card key={i} className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs p-6">
               <Skeleton className="h-4 w-24 mb-4" />
               <Skeleton className="h-8 w-32" />
@@ -146,6 +147,12 @@ export default function DashboardOverviewPage() {
               value={recentBookings.length || 1}
               subtitle="1 pending check-in today"
               icon={CalendarCheck}
+            />
+            <MetricCard
+              title="Carpool Routes"
+              value={overview?.carpool_active_rides ?? 5}
+              subtitle={`${overview?.carpool_total_requests ?? 1} seat bookings`}
+              icon={Route}
             />
             <MetricCard
               title="Fleet Health"
@@ -312,6 +319,16 @@ export default function DashboardOverviewPage() {
                   <div className="flex items-center gap-2.5">
                     <Car className="h-4 w-4 text-primary" />
                     <span className="text-xs font-medium dark:text-zinc-200 text-slate-800">Switch Vehicle Status</span>
+                  </div>
+                  <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400" />
+                </div>
+              </Link>
+
+              <Link href="/dashboard/carpool" className="block">
+                <div className="flex items-center justify-between p-2.5 rounded-lg border dark:border-white/[0.06] border-slate-200 dark:bg-white/[0.02] bg-slate-50 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <Route className="h-4 w-4 text-emerald-500" />
+                    <span className="text-xs font-medium dark:text-zinc-200 text-slate-800">Manage Carpool &amp; Rides</span>
                   </div>
                   <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400" />
                 </div>

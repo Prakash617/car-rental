@@ -6,7 +6,14 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, serializers
 from rest_framework.views import APIView
 
-from apps.tenant.bookings.models import Booking, BookingStatus, PaymentStatus
+from apps.tenant.bookings.models import (
+    Booking,
+    BookingStatus,
+    PaymentStatus,
+    CarpoolRide,
+    CarpoolBookingRequest,
+    CarpoolAlertSubscription,
+)
 from apps.tenant.maintenance.models import MaintenanceRecord, MaintenanceStatus, ServiceInterval
 from apps.tenant.payments.models import Payment, PaymentStatusChoices
 from apps.tenant.vehicles.models import Vehicle, VehicleStatus
@@ -30,6 +37,10 @@ class DashboardOverviewSerializer(serializers.Serializer):
 
     maintenance_active_jobs = serializers.IntegerField()
     maintenance_overdue_services = serializers.IntegerField()
+
+    carpool_active_rides = serializers.IntegerField(default=0, required=False)
+    carpool_total_requests = serializers.IntegerField(default=0, required=False)
+    carpool_alert_subscribers = serializers.IntegerField(default=0, required=False)
 
 
 class DashboardOverviewView(StandardResponseMixin, APIView):
@@ -82,6 +93,11 @@ class DashboardOverviewView(StandardResponseMixin, APIView):
             if interval.is_due():
                 due_services += 1
 
+        # Carpool metrics
+        carpool_active = CarpoolRide.objects.filter(status__in=["active", "full"]).count()
+        carpool_requests = CarpoolBookingRequest.objects.count()
+        carpool_subs = CarpoolAlertSubscription.objects.count()
+
         payload = {
             "fleet_total": total_fleet,
             "fleet_available": available_fleet,
@@ -95,6 +111,9 @@ class DashboardOverviewView(StandardResponseMixin, APIView):
             "pending_revenue": str(pending_revenue),
             "maintenance_active_jobs": active_maintenance,
             "maintenance_overdue_services": due_services,
+            "carpool_active_rides": carpool_active,
+            "carpool_total_requests": carpool_requests,
+            "carpool_alert_subscribers": carpool_subs,
         }
 
         return self.success_response(

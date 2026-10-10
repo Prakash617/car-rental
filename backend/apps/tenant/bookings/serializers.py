@@ -116,11 +116,14 @@ class CreateBookingSerializer(serializers.Serializer):
 
 
 class CarpoolBookingRequestSerializer(serializers.ModelSerializer):
+    ride_details = serializers.SerializerMethodField()
+
     class Meta:
         model = CarpoolBookingRequest
         fields = [
             "id",
             "ride",
+            "ride_details",
             "passenger_name",
             "passenger_phone",
             "passenger_email",
@@ -133,6 +136,24 @@ class CarpoolBookingRequestSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = ["id", "status", "created_at"]
+
+    def get_ride_details(self, obj):
+        if obj.ride:
+            return {
+                "id": str(obj.ride.id),
+                "origin_city": obj.ride.origin_city,
+                "origin_point": obj.ride.origin_point,
+                "destination_city": obj.ride.destination_city,
+                "destination_point": obj.ride.destination_point,
+                "departure_datetime": obj.ride.departure_datetime.isoformat(),
+                "vehicle_model": obj.ride.vehicle_model,
+                "vehicle_type": obj.ride.vehicle_type,
+                "driver_name": obj.ride.driver_name,
+                "driver_phone": obj.ride.driver_phone,
+                "price_per_seat": str(obj.ride.price_per_seat),
+                "status": obj.ride.status,
+            }
+        return None
 
 
 class CarpoolRideSerializer(serializers.ModelSerializer):

@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   User,
   Key,
+  Route,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -42,6 +43,11 @@ const mgmtNavItems = [
     label: "Reservations",
     href: "/dashboard/bookings",
     icon: CalendarCheck,
+  },
+  {
+    label: "Carpool & Rides",
+    href: "/dashboard/carpool",
+    icon: Route,
   },
   {
     label: "Customer Directory",

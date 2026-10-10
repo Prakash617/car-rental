@@ -225,6 +225,13 @@ export function Topbar() {
             Reservations
           </Link>
           <Link
+            href="/dashboard/carpool"
+            onClick={() => setMobileOpen(false)}
+            className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
+          >
+            Carpool &amp; Rides
+          </Link>
+          <Link
             href="/dashboard/customers"
             onClick={() => setMobileOpen(false)}
             className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"

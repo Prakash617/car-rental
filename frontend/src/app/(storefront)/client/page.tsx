@@ -28,10 +28,12 @@ import {
   ArrowRight,
   Shield,
   Check,
+  Users,
+  Route,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
 import { Booking } from "@/types";
-import { getSafeImageUrl, DEFAULT_VEHICLE_IMAGE } from "@/lib/utils";
+import { getSafeImageUrl, DEFAULT_VEHICLE_IMAGE, cn } from "@/lib/utils";
 import { triggerGoogleOAuth, authenticateWithGoogleToken } from "@/lib/googleAuth";
 
 function ClientDashboardContent() {
@@ -42,7 +44,7 @@ function ClientDashboardContent() {
   const authModeParam = searchParams.get("auth");
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "bookings" | "kyc" | "inquiries" | "vehicles" | "password"
+    "overview" | "bookings" | "carpool" | "kyc" | "inquiries" | "vehicles" | "password"
   >("overview");
 
   // Authentication State
@@ -116,6 +118,10 @@ function ClientDashboardContent() {
   const [selectedInvoice, setSelectedInvoice] = useState<Booking | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
+  // Carpool state
+  const [carpoolRequests, setCarpoolRequests] = useState<any[]>([]);
+  const [isLoadingCarpool, setIsLoadingCarpool] = useState(false);
+
   // Inquiries state
   const [inquiries, setInquiries] = useState<
     { id: string; subject: string; message: string; date: string; status: string }[]
@@ -134,6 +140,7 @@ function ClientDashboardContent() {
   // Sync tab with query param
   useEffect(() => {
     if (tabParam === "bookings") setActiveTab("bookings");
+    else if (tabParam === "carpool") setActiveTab("carpool");
     else if (tabParam === "kyc") setActiveTab("kyc");
     else if (tabParam === "inquiries") setActiveTab("inquiries");
     else if (tabParam === "vehicles") setActiveTab("vehicles");
@@ -213,6 +220,7 @@ function ClientDashboardContent() {
           });
           setIsAuthenticated(true);
           fetchBookings(email || phone);
+          fetchCarpoolRequests(phone || email);
         }
       } catch (e) {
         console.error("Failed to parse stored customer session:", e);
@@ -239,6 +247,27 @@ function ClientDashboardContent() {
       setBookings([]);
     } finally {
       setIsLoadingBookings(false);
+    }
+  };
+
+  // Fetch client carpool requests
+  const fetchCarpoolRequests = async (identifier = "") => {
+    setIsLoadingCarpool(true);
+    try {
+      const idToUse = identifier || profile.phone || profile.email || "";
+      const query = idToUse
+        ? idToUse.includes("@")
+          ? `?email=${encodeURIComponent(idToUse)}`
+          : `?phone=${encodeURIComponent(idToUse)}`
+        : "";
+      const res = await apiFetch<any>(`/api/v1/carpool/requests/${query}`);
+      const list = Array.isArray(res) ? res : res?.data || [];
+      setCarpoolRequests(list);
+    } catch (err) {
+      console.error("Error loading carpool requests:", err);
+      setCarpoolRequests([]);
+    } finally {
+      setIsLoadingCarpool(false);
     }
   };
 
@@ -288,6 +317,7 @@ function ClientDashboardContent() {
     setShowGoogleModal(false);
     setAuthSuccess(`Welcome to Apex Rentals, ${customer.first_name || fullName}!`);
     fetchBookings(email || phone);
+    fetchCarpoolRequests(phone || email);
   };
 
   const handleKycSubmit = async (e: React.FormEvent) => {
@@ -615,6 +645,7 @@ function ClientDashboardContent() {
   const menuItems = [
     { id: "overview", label: "Profile Overview", icon: User },
     { id: "bookings", label: "My Bookings", icon: Calendar },
+    { id: "carpool", label: "Carpool Trips", icon: Users },
     { id: "kyc", label: "Identity & KYC", icon: ShieldCheck },
     { id: "inquiries", label: "My Inquiries", icon: HelpCircle },
     { id: "vehicles", label: "My Vehicles", icon: Car },
@@ -1401,6 +1432,162 @@ function ClientDashboardContent() {
                           className="px-5 py-2.5 bg-[#e11d2e] hover:bg-[#b01524] text-white text-xs font-bold rounded-xl shadow-md transition-colors"
                         >
                           Browse Available Vehicles
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: CARPOOL TRIPS */}
+              {activeTab === "carpool" && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-bold text-slate-900">
+                            Carpool &amp; Shared Rides
+                          </h2>
+                          <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            Sajilo Shared Travel
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Review your requested intercity seats, departure schedules, and verified drivers.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href="/carpool"
+                          className="px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5"
+                        >
+                          <Users className="w-3.5 h-3.5" />
+                          <span>Find Shared Rides</span>
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* Carpool List */}
+                    {isLoadingCarpool ? (
+                      <div className="py-16 flex justify-center">
+                        <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : carpoolRequests.length > 0 ? (
+                      <div className="divide-y divide-slate-100 pt-2 space-y-4">
+                        {carpoolRequests.map((req) => (
+                          <div
+                            key={req.id}
+                            className="p-5 rounded-2xl border border-slate-100 hover:border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-all space-y-3"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-slate-900">
+                                    {req.ride_details ? `${req.ride_details.origin_city} → ${req.ride_details.destination_city}` : "Intercity Shared Ride"}
+                                  </span>
+                                  <span
+                                    className={cn(
+                                      "text-[10px] font-mono px-2 py-0.5 rounded-md font-semibold capitalize",
+                                      req.status === "approved"
+                                        ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                        : req.status === "pending"
+                                        ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                                        : "bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                                    )}
+                                  >
+                                    {req.status}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 font-mono mt-0.5">
+                                  Request #{req.id.slice(0, 8)} • Reserved on{" "}
+                                  {new Date(req.created_at).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  })}
+                                </p>
+                              </div>
+
+                              <div className="text-left sm:text-right">
+                                <span className="text-xs text-slate-400 block">Total Fare</span>
+                                <span className="text-base font-bold font-mono text-emerald-600">
+                                  NPR {Number(req.total_amount).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs border-t border-slate-200/60">
+                              <div>
+                                <span className="text-slate-400 font-medium block">Route Landmarks</span>
+                                <span className="text-slate-700 font-medium">
+                                  From: {req.pickup_point || "Central"}
+                                </span>
+                                <br />
+                                <span className="text-slate-700 font-medium">
+                                  To: {req.dropoff_point || "Central"}
+                                </span>
+                              </div>
+
+                              <div>
+                                <span className="text-slate-400 font-medium block">Seats &amp; Departure</span>
+                                <span className="text-slate-900 font-semibold font-mono">
+                                  {req.seats_requested} seat{req.seats_requested > 1 ? "s" : ""}
+                                </span>
+                                {req.ride_details && (
+                                  <span className="text-slate-600 block font-mono text-[11px] mt-0.5">
+                                    {new Date(req.ride_details.departure_datetime).toLocaleDateString("en-US", {
+                                      month: "short",
+                                      day: "numeric",
+                                    })}{" "}
+                                    {new Date(req.ride_details.departure_datetime).toLocaleTimeString("en-US", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div>
+                                <span className="text-slate-400 font-medium block">Vehicle &amp; Host</span>
+                                <span className="text-slate-800 font-semibold">
+                                  {req.ride_details?.vehicle_model || "Standard Express"}
+                                </span>
+                                {req.ride_details?.driver_name && (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-slate-600 text-[11px]">
+                                      Driver: {req.ride_details.driver_name}
+                                    </span>
+                                    <a
+                                      href={`tel:${req.ride_details.driver_phone}`}
+                                      className="text-primary hover:underline font-mono text-[11px]"
+                                    >
+                                      {req.ride_details.driver_phone}
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-16 flex flex-col items-center justify-center text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-500 mb-3 border border-emerald-200">
+                          <Users className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800">
+                          No Carpool Trips Booked
+                        </h3>
+                        <p className="text-xs text-slate-500 max-w-sm mt-1 mb-4">
+                          You have not requested seats on any published shared routes yet. Join economical shared rides across Nepal.
+                        </p>
+                        <Link
+                          href="/carpool"
+                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors"
+                        >
+                          Explore Published Rides
                         </Link>
                       </div>
                     )}
