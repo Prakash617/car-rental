@@ -132,6 +132,11 @@ export interface Customer {
   date_of_birth: string;
   country: string;
   is_verified: boolean;
+  id_card_number?: string;
+  driver_license_image?: string;
+  citizenship_image?: string;
+  kyc_status?: "unverified" | "pending" | "verified" | "rejected";
+  kyc_notes?: string;
   created_at: string;
 }
 

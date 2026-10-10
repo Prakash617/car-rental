@@ -20,6 +20,13 @@ class Customer(models.Model):
     date_of_birth = models.DateField("Date of Birth", null=True, blank=True)
     country = models.CharField("Country Code", max_length=2, default="NP")
 
+    # KYC & Identity Documents
+    id_card_number = models.CharField("ID / Citizenship / Passport Number", max_length=50, blank=True, default="")
+    driver_license_image = models.TextField("Driver's License Document", blank=True, default="")
+    citizenship_image = models.TextField("Citizenship / Passport Document", blank=True, default="")
+    kyc_status = models.CharField("KYC Verification Status", max_length=20, default="unverified")  # unverified, pending, verified, rejected
+    kyc_notes = models.TextField("KYC Audit Notes", blank=True, default="")
+
     is_verified = models.BooleanField("Identity Verified", default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

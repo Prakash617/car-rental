@@ -146,6 +146,24 @@ export async function createCustomer(
 }
 
 /**
+ * Verify or reject customer KYC identity & driving documents
+ */
+export async function verifyCustomerKyc(
+  customerId: string,
+  status: "verified" | "rejected",
+  notes?: string,
+  token?: string,
+  tenantHost?: string
+): Promise<Customer> {
+  return apiFetch<Customer>(`/customers/${customerId}/verify-kyc/`, {
+    method: "POST",
+    token,
+    tenantHost,
+    body: JSON.stringify({ status, notes }),
+  });
+}
+
+/**
  * Fetch current website and theme configuration for editing
  */
 export async function getManageableWebsiteConfig(token?: string, tenantHost?: string): Promise<TenantBranding> {

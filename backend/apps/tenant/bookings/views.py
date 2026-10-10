@@ -300,3 +300,42 @@ class BookingViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             data=BookingSerializer(booking).data,
             message="Rental marked as completed. Vehicle returned to fleet inventory.",
         )
+
+    @action(detail=True, methods=["post"], url_path="assign-driver", permission_classes=[IsTenantStaffOrAbove])
+    def assign_driver(self, request, pk=None):
+        """
+        Staff action: assign or change chauffeur name and phone for this booking.
+        """
+        booking = self.get_object()
+        driver_name = request.data.get("driver_name", "").strip()
+        driver_phone = request.data.get("driver_phone", "").strip()
+        driver_license = request.data.get("driver_license", "").strip()
+
+        if not driver_name:
+            return self.error_response(
+                message="Chauffeur name is required.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        booking.vehicle.driver_name = driver_name
+        booking.vehicle.save(update_fields=["driver_name"])
+
+        dispatch_note = f"[Chauffeur Dispatched]: {driver_name} (Phone: {driver_phone or '—'}, License: {driver_license or 'Verified'})"
+        current_notes = booking.notes or ""
+        if dispatch_note not in current_notes:
+            booking.notes = f"{current_notes}\n{dispatch_note}".strip()
+            booking.save(update_fields=["notes"])
+
+        from apps.tenant.audit.services import AuditService
+        AuditService.log(
+            actor_email=getattr(request.user, "email", "concierge@tenant.local"),
+            action="ASSIGN_CHAUFFEUR",
+            resource_type="Booking",
+            resource_id=str(booking.id),
+            details={"reference": booking.booking_reference, "driver": driver_name},
+        )
+
+        return self.success_response(
+            data=BookingSerializer(booking).data,
+            message=f"Chauffeur {driver_name} assigned to booking {booking.booking_reference}.",
+        )

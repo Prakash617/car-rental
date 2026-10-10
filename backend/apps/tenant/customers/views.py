@@ -11,12 +11,13 @@ from .models import Customer
 from .serializers import (
     CustomerChangePasswordSerializer,
     CustomerGoogleAuthSerializer,
+    CustomerKycUploadSerializer,
     CustomerLoginSerializer,
     CustomerSerializer,
     CustomerSignupSerializer,
     CustomerUpdateProfileSerializer,
 )
-
+from rest_framework.decorators import action
 
 
 class CustomerViewSet(StandardResponseMixin, viewsets.ModelViewSet):
@@ -29,16 +30,43 @@ class CustomerViewSet(StandardResponseMixin, viewsets.ModelViewSet):
     serializer_class = CustomerSerializer
     permission_classes = [permissions.IsAuthenticated, IsTenantStaffOrAbove]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ["is_verified", "country"]
+    filterset_fields = ["is_verified", "country", "kyc_status"]
     search_fields = [
         "first_name",
         "last_name",
         "email",
         "phone",
         "driver_license_number",
+        "id_card_number",
     ]
-    ordering_fields = ["created_at", "last_name", "email"]
+    ordering_fields = ["created_at", "last_name", "email", "kyc_status"]
     ordering = ["-created_at"]
+
+    @action(detail=True, methods=["post"], url_path="verify-kyc")
+    def verify_kyc(self, request, pk=None):
+        """
+        Staff action: approve or reject customer identity & KYC verification.
+        """
+        customer = self.get_object()
+        action_type = request.data.get("status", "verified")
+        notes = request.data.get("notes", "")
+
+        if action_type == "verified":
+            customer.is_verified = True
+            customer.kyc_status = "verified"
+            if notes:
+                customer.kyc_notes = notes
+            customer.save(update_fields=["is_verified", "kyc_status", "kyc_notes"])
+            msg = f"Customer {customer.full_name} identity and license verified successfully."
+        else:
+            customer.is_verified = False
+            customer.kyc_status = "rejected"
+            if notes:
+                customer.kyc_notes = notes
+            customer.save(update_fields=["is_verified", "kyc_status", "kyc_notes"])
+            msg = f"Customer {customer.full_name} KYC verification marked as rejected."
+
+        return self.success_response(data=CustomerSerializer(customer).data, message=msg)
 
 
 class CustomerSignupView(StandardResponseMixin, APIView):
@@ -334,4 +362,41 @@ class CustomerGoogleAuthView(StandardResponseMixin, APIView):
         )
 
 
+class CustomerKycUploadView(StandardResponseMixin, APIView):
+    """
+    Public storefront endpoint for customers to upload or update their
+    driver's license and citizenship/passport documents for KYC verification.
+    """
 
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(request=CustomerKycUploadSerializer)
+    def post(self, request):
+        serializer = CustomerKycUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            customer = Customer.objects.get(id=data["customer_id"])
+        except Customer.DoesNotExist:
+            return self.error_response(
+                message="Customer profile not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        if data.get("id_card_number"):
+            customer.id_card_number = data["id_card_number"].strip()
+        if data.get("driver_license_number"):
+            customer.driver_license_number = data["driver_license_number"].strip()
+        if data.get("driver_license_image"):
+            customer.driver_license_image = data["driver_license_image"].strip()
+        if data.get("citizenship_image"):
+            customer.citizenship_image = data["citizenship_image"].strip()
+
+        customer.kyc_status = "pending"
+        customer.save()
+
+        return self.success_response(
+            data={"customer": CustomerSerializer(customer).data},
+            message="KYC documents submitted successfully. Verification status is now Pending Review.",
+        )

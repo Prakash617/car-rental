@@ -19,10 +19,23 @@ class CustomerSerializer(serializers.ModelSerializer):
             "license_expiry_date",
             "date_of_birth",
             "country",
+            "id_card_number",
+            "driver_license_image",
+            "citizenship_image",
+            "kyc_status",
+            "kyc_notes",
             "is_verified",
             "created_at",
         ]
         read_only_fields = ["id", "is_verified", "created_at"]
+
+
+class CustomerKycUploadSerializer(serializers.Serializer):
+    customer_id = serializers.UUIDField()
+    id_card_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    driver_license_number = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    driver_license_image = serializers.CharField(required=False, allow_blank=True)
+    citizenship_image = serializers.CharField(required=False, allow_blank=True)
 
 
 class CustomerSignupSerializer(serializers.Serializer):

@@ -42,7 +42,7 @@ function ClientDashboardContent() {
   const authModeParam = searchParams.get("auth");
 
   const [activeTab, setActiveTab] = useState<
-    "overview" | "bookings" | "inquiries" | "vehicles" | "password"
+    "overview" | "bookings" | "kyc" | "inquiries" | "vehicles" | "password"
   >("overview");
 
   // Authentication State
@@ -65,7 +65,6 @@ function ClientDashboardContent() {
     password: "",
   });
 
-
   // Signup form state
   const [signupForm, setSignupForm] = useState({
     firstName: "",
@@ -85,7 +84,23 @@ function ClientDashboardContent() {
     joined: "",
     customerId: "",
     driverLicense: "",
+    kycStatus: "unverified",
+    idCardNumber: "",
+    driverLicenseImage: "",
+    citizenshipImage: "",
+    kycNotes: "",
   });
+
+  // KYC Submission Form state
+  const [kycForm, setKycForm] = useState({
+    idCardNumber: "",
+    driverLicenseNumber: "",
+    driverLicenseImage: "",
+    citizenshipImage: "",
+  });
+  const [isSubmittingKyc, setIsSubmittingKyc] = useState(false);
+  const [kycSuccessMessage, setKycSuccessMessage] = useState("");
+  const [kycErrorMessage, setKycErrorMessage] = useState("");
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -119,6 +134,7 @@ function ClientDashboardContent() {
   // Sync tab with query param
   useEffect(() => {
     if (tabParam === "bookings") setActiveTab("bookings");
+    else if (tabParam === "kyc") setActiveTab("kyc");
     else if (tabParam === "inquiries") setActiveTab("inquiries");
     else if (tabParam === "vehicles") setActiveTab("vehicles");
     else if (tabParam === "password") setActiveTab("password");
@@ -178,11 +194,22 @@ function ClientDashboardContent() {
             joined,
             customerId: customer.id || "",
             driverLicense: customer.driver_license_number || "CHAUFFEUR-BOOKING",
+            kycStatus: customer.kyc_status || (customer.is_verified ? "verified" : "unverified"),
+            idCardNumber: customer.id_card_number || "",
+            driverLicenseImage: customer.driver_license_image || "",
+            citizenshipImage: customer.citizenship_image || "",
+            kycNotes: customer.kyc_notes || "",
           });
           setEditForm({
             fullName,
             phone: phone !== "—" ? phone : "",
             driverLicense: customer.driver_license_number || "",
+          });
+          setKycForm({
+            idCardNumber: customer.id_card_number || "",
+            driverLicenseNumber: customer.driver_license_number || "",
+            driverLicenseImage: customer.driver_license_image || "",
+            citizenshipImage: customer.citizenship_image || "",
           });
           setIsAuthenticated(true);
           fetchBookings(email || phone);
@@ -238,11 +265,22 @@ function ClientDashboardContent() {
       joined,
       customerId: customer.id || "",
       driverLicense: customer.driver_license_number || "CHAUFFEUR-BOOKING",
+      kycStatus: customer.kyc_status || (customer.is_verified ? "verified" : "unverified"),
+      idCardNumber: customer.id_card_number || "",
+      driverLicenseImage: customer.driver_license_image || "",
+      citizenshipImage: customer.citizenship_image || "",
+      kycNotes: customer.kyc_notes || "",
     });
     setEditForm({
       fullName,
       phone: phone !== "—" ? phone : "",
       driverLicense: customer.driver_license_number || "",
+    });
+    setKycForm({
+      idCardNumber: customer.id_card_number || "",
+      driverLicenseNumber: customer.driver_license_number || "",
+      driverLicenseImage: customer.driver_license_image || "",
+      citizenshipImage: customer.citizenship_image || "",
     });
 
     setIsAuthenticated(true);
@@ -250,6 +288,55 @@ function ClientDashboardContent() {
     setShowGoogleModal(false);
     setAuthSuccess(`Welcome to Apex Rentals, ${customer.first_name || fullName}!`);
     fetchBookings(email || phone);
+  };
+
+  const handleKycSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile.customerId) {
+      setKycErrorMessage("Please sign in to submit verification documents.");
+      return;
+    }
+    setIsSubmittingKyc(true);
+    setKycErrorMessage("");
+    setKycSuccessMessage("");
+
+    try {
+      const res = await apiFetch<any>("/api/v1/customers/kyc/upload/", {
+        method: "POST",
+        body: JSON.stringify({
+          customer_id: profile.customerId,
+          id_card_number: kycForm.idCardNumber.trim(),
+          driver_license_number: kycForm.driverLicenseNumber.trim(),
+          driver_license_image: kycForm.driverLicenseImage.trim(),
+          citizenship_image: kycForm.citizenshipImage.trim(),
+        }),
+      });
+
+      const updatedCustomer = res?.data?.customer || res?.customer;
+      if (updatedCustomer) {
+        setProfile((prev) => ({
+          ...prev,
+          kycStatus: "pending",
+          idCardNumber: updatedCustomer.id_card_number || kycForm.idCardNumber,
+          driverLicense: updatedCustomer.driver_license_number || kycForm.driverLicenseNumber,
+        }));
+        try {
+          const stored = localStorage.getItem("apex_customer_auth");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            Object.assign(parsed, updatedCustomer);
+            localStorage.setItem("apex_customer_auth", JSON.stringify(parsed));
+          }
+        } catch {}
+      } else {
+        setProfile((prev) => ({ ...prev, kycStatus: "pending" }));
+      }
+      setKycSuccessMessage("Identity documents uploaded successfully! Verification desk has received your request.");
+    } catch (err: any) {
+      setKycErrorMessage(err.message || "Failed to submit KYC documents.");
+    } finally {
+      setIsSubmittingKyc(false);
+    }
   };
 
   const handleGoogleClick = () => {
@@ -331,25 +418,8 @@ function ClientDashboardContent() {
           })
         : "Recent";
 
-      setProfile({
-        fullName,
-        email,
-        phone,
-        role: "Verified Renter",
-        joined,
-        customerId: customer.id || "",
-        driverLicense: customer.driver_license_number || "CHAUFFEUR-BOOKING",
-      });
-      setEditForm({
-        fullName,
-        phone: phone !== "—" ? phone : "",
-        driverLicense: customer.driver_license_number || "",
-      });
-
-      setIsAuthenticated(true);
-      setIsGuestMode(false);
-      setAuthSuccess(`Welcome back, ${customer.first_name || fullName}!`);
-      fetchBookings(email || phone);
+      applyCustomerToState(customer);
+      setAuthSuccess(`Welcome back, ${customer.first_name || customer.full_name || "Renter"}!`);
     } catch (err: any) {
       setAuthError(err.message || "Failed to sign in. Please verify your credentials.");
     } finally {
@@ -399,25 +469,8 @@ function ClientDashboardContent() {
           })
         : "Recent";
 
-      setProfile({
-        fullName,
-        email,
-        phone,
-        role: "Verified Renter",
-        joined,
-        customerId: customer.id || "",
-        driverLicense: customer.driver_license_number || "CHAUFFEUR-BOOKING",
-      });
-      setEditForm({
-        fullName,
-        phone: phone !== "—" ? phone : "",
-        driverLicense: customer.driver_license_number || "",
-      });
-
-      setIsAuthenticated(true);
-      setIsGuestMode(false);
-      setAuthSuccess(`Welcome to Sajilo Rentals, ${customer.first_name || fullName}!`);
-      fetchBookings(email || phone);
+      applyCustomerToState(customer);
+      setAuthSuccess(`Welcome to Sajilo Rentals, ${customer.first_name || customer.full_name || "Renter"}!`);
     } catch (err: any) {
       setAuthError(err.message || "Registration failed. Please check your details.");
     } finally {
@@ -562,6 +615,7 @@ function ClientDashboardContent() {
   const menuItems = [
     { id: "overview", label: "Profile Overview", icon: User },
     { id: "bookings", label: "My Bookings", icon: Calendar },
+    { id: "kyc", label: "Identity & KYC", icon: ShieldCheck },
     { id: "inquiries", label: "My Inquiries", icon: HelpCircle },
     { id: "vehicles", label: "My Vehicles", icon: Car },
     { id: "password", label: "Change Password", icon: Key },
@@ -1073,38 +1127,53 @@ function ClientDashboardContent() {
                       </div>
                     ) : bookings.length > 0 ? (
                       <div className="divide-y divide-slate-100">
-                        {bookings.slice(0, 3).map((b) => (
-                          <div
-                            key={b.id}
-                            className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                          >
-                            <div>
-                              <span className="font-mono font-bold text-xs text-slate-900">
-                                #{b.booking_reference}
-                              </span>
-                              <p className="text-sm font-semibold text-slate-800">
-                                {b.vehicle?.brand} {b.vehicle?.model}
-                              </p>
-                              <span className="text-xs text-slate-500">
-                                {new Date(b.pickup_datetime).toLocaleDateString()} &bull; Rs.{" "}
-                                {Number(b.total_price || 0).toLocaleString()}
-                              </span>
-                            </div>
+                        {bookings.slice(0, 3).map((b) => {
+                          const chauffeurName =
+                            b.vehicle?.driver_name ||
+                            (b.notes?.includes("[Chauffeur Dispatched]:")
+                              ? b.notes.match(/\[Chauffeur Dispatched\]:\s*([^(]+)/i)?.[1]?.trim()
+                              : "");
 
-                            <div className="flex items-center gap-2">
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                {b.status}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => setSelectedInvoice(b)}
-                                className="px-2.5 py-1 text-xs font-bold text-[#388ddd] hover:underline cursor-pointer"
-                              >
-                                Invoice
-                              </button>
+                          return (
+                            <div
+                              key={b.id}
+                              className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-xs text-slate-900">
+                                    #{b.booking_reference}
+                                  </span>
+                                  {chauffeurName && (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      Chauffeur: {chauffeurName}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm font-semibold text-slate-800">
+                                  {b.vehicle?.brand} {b.vehicle?.model}
+                                </p>
+                                <span className="text-xs text-slate-500">
+                                  {new Date(b.pickup_datetime).toLocaleDateString()} &bull; Rs.{" "}
+                                  {Number(b.total_price || 0).toLocaleString()}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  {b.status}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedInvoice(b)}
+                                  className="px-2.5 py-1 text-xs font-bold text-[#388ddd] hover:underline cursor-pointer"
+                                >
+                                  Invoice
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="py-12 flex flex-col items-center justify-center text-center">
@@ -1192,78 +1261,126 @@ function ClientDashboardContent() {
                             booking.status === "pending" || booking.status === "confirmed";
                           const totalFare = Number(booking.total_price) || 0;
 
+                          // Extract assigned chauffeur information
+                          let chauffeurName = vehicle?.driver_name || "";
+                          let chauffeurPhone = "";
+                          if (booking.notes && booking.notes.includes("[Chauffeur Dispatched]:")) {
+                            const noteMatch = booking.notes.match(
+                              /\[Chauffeur Dispatched\]:\s*([^(]+)(?:\(Phone:\s*([^,)]+))?/i
+                            );
+                            if (noteMatch) {
+                              if (!chauffeurName) chauffeurName = noteMatch[1]?.trim() || "";
+                              chauffeurPhone = noteMatch[2]?.trim() || "";
+                            }
+                          }
+
                           return (
                             <div
                               key={booking.id}
-                              className="pt-4 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                              className="pt-4 flex flex-col gap-3"
                             >
-                              <div className="flex items-start gap-4">
-                                <div className="relative w-20 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
-                                  <Image
-                                    src={primaryImage}
-                                    alt={vehicle?.model || "Vehicle"}
-                                    fill
-                                    className="object-cover"
-                                  />
-                                </div>
-
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono font-bold text-xs text-slate-900">
-                                      #{booking.booking_reference}
-                                    </span>
-                                    <span
-                                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${statusColor}`}
-                                    >
-                                      {booking.status}
-                                    </span>
+                              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div className="flex items-start gap-4">
+                                  <div className="relative w-20 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                                    <Image
+                                      src={primaryImage}
+                                      alt={vehicle?.model || "Vehicle"}
+                                      fill
+                                      className="object-cover"
+                                    />
                                   </div>
 
-                                  <h3 className="font-bold text-slate-900 text-sm mt-0.5">
-                                    {vehicle?.brand} {vehicle?.model}
-                                  </h3>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono font-bold text-xs text-slate-900">
+                                        #{booking.booking_reference}
+                                      </span>
+                                      <span
+                                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${statusColor}`}
+                                      >
+                                        {booking.status}
+                                      </span>
+                                    </div>
 
-                                  <p className="text-xs text-slate-500 mt-0.5">
-                                    {booking.pickup_location || "Kathmandu"} &rarr;{" "}
-                                    {booking.destination_location || "Dropoff point"}
-                                  </p>
+                                    <h3 className="font-bold text-slate-900 text-sm mt-0.5">
+                                      {vehicle?.brand} {vehicle?.model}
+                                    </h3>
 
-                                  <span className="text-[11px] text-slate-400 mt-1 block">
-                                    {new Date(booking.pickup_datetime).toLocaleString()}
-                                  </span>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                      {booking.pickup_location || "Kathmandu"} &rarr;{" "}
+                                      {booking.destination_location || "Dropoff point"}
+                                    </p>
+
+                                    <span className="text-[11px] text-slate-400 mt-1 block">
+                                      {new Date(booking.pickup_datetime).toLocaleString()}
+                                    </span>
+                                  </div>
                                 </div>
-                              </div>
 
-                              <div className="flex flex-col sm:items-end justify-between gap-2 border-t md:border-t-0 pt-3 md:pt-0">
-                                <div className="text-left sm:text-right">
-                                  <span className="text-[11px] text-slate-400 block">Total Amount</span>
-                                  <strong className="text-base font-extrabold text-[#e11d2e]">
-                                    Rs. {totalFare.toLocaleString()}
-                                  </strong>
-                                </div>
+                                <div className="flex flex-col sm:items-end justify-between gap-2 border-t md:border-t-0 pt-3 md:pt-0">
+                                  <div className="text-left sm:text-right">
+                                    <span className="text-[11px] text-slate-400 block">Total Amount</span>
+                                    <strong className="text-base font-extrabold text-[#e11d2e]">
+                                      Rs. {totalFare.toLocaleString()}
+                                    </strong>
+                                  </div>
 
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedInvoice(booking)}
-                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#388ddd] rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                                  >
-                                    <FileText className="w-3.5 h-3.5" />
-                                    <span>Tax Invoice</span>
-                                  </button>
-
-                                  {isCancellable && (
+                                  <div className="flex items-center gap-2">
                                     <button
                                       type="button"
-                                      disabled={cancellingId === booking.id}
-                                      onClick={() => handleCancelBooking(booking.id)}
-                                      className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                                      onClick={() => setSelectedInvoice(booking)}
+                                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#388ddd] rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                                     >
-                                      {cancellingId === booking.id ? "Cancelling..." : "Cancel"}
+                                      <FileText className="w-3.5 h-3.5" />
+                                      <span>Tax Invoice</span>
                                     </button>
-                                  )}
+
+                                    {isCancellable && (
+                                      <button
+                                        type="button"
+                                        disabled={cancellingId === booking.id}
+                                        onClick={() => handleCancelBooking(booking.id)}
+                                        className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                                      >
+                                        {cancellingId === booking.id ? "Cancelling..." : "Cancel"}
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
+
+                              {/* Chauffeur Dispatch Details Banner */}
+                              {chauffeurName && (
+                                <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-50/90 to-teal-50/90 border border-emerald-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs shrink-0">
+                                      🚗
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-bold text-slate-900">{chauffeurName}</span>
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
+                                          Assigned Chauffeur
+                                        </span>
+                                      </div>
+                                      {chauffeurPhone && chauffeurPhone !== "—" && (
+                                        <span className="text-[11px] text-slate-600 block mt-0.5">
+                                          Direct Contact: <span className="font-semibold text-emerald-800 font-mono">{chauffeurPhone}</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {chauffeurPhone && chauffeurPhone !== "—" && (
+                                    <a
+                                      href={`tel:${chauffeurPhone}`}
+                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 w-fit shrink-0 transition-colors shadow-2xs"
+                                    >
+                                      <Phone className="w-3.5 h-3.5" />
+                                      <span>Call Chauffeur</span>
+                                    </a>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -1287,6 +1404,254 @@ function ClientDashboardContent() {
                         </Link>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: IDENTITY & KYC VERIFICATION */}
+              {activeTab === "kyc" && (
+                <div className="space-y-6">
+                  <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900">
+                          Identity &amp; License Verification (KYC)
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Upload Government National ID / Citizenship and Driver&apos;s License for instant verified rental access.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {profile.kycStatus === "verified" ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                            <span>Verified Renter</span>
+                          </span>
+                        ) : profile.kycStatus === "pending" ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                            <span>Pending Review</span>
+                          </span>
+                        ) : profile.kycStatus === "rejected" ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 text-rose-600" />
+                            <span>Re-Upload Required</span>
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1.5">
+                            <Shield className="w-4 h-4 text-slate-400" />
+                            <span>Unverified</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status Alert Description */}
+                    <div className="mt-4 p-4 rounded-xl border text-xs flex items-start gap-3 bg-slate-50/70 border-slate-200/80">
+                      {profile.kycStatus === "verified" ? (
+                        <>
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-slate-900 block">Identity Fully Approved</span>
+                            <p className="text-slate-600 mt-0.5">
+                              Your documents have been verified by our dispatch team. You are eligible for instant vehicle collection, reduced security deposits, and express self-drive reservations.
+                            </p>
+                          </div>
+                        </>
+                      ) : profile.kycStatus === "pending" ? (
+                        <>
+                          <div className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 font-bold text-xs mt-0.5">
+                            ⏳
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-900 block">Under Review by Dispatch Operations</span>
+                            <p className="text-slate-600 mt-0.5">
+                              Your documents have been submitted and are currently in the verification queue. Average verification turnaround is 2-4 business hours.
+                            </p>
+                          </div>
+                        </>
+                      ) : profile.kycStatus === "rejected" ? (
+                        <>
+                          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-slate-900 block">Verification Request Rejected</span>
+                            <p className="text-slate-600 mt-0.5">
+                              {profile.kycNotes || "Your submitted document images were unreadable or expired. Please upload high-resolution photos of your original license and citizenship."}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Shield className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-slate-900 block">Verification Required Before Handover</span>
+                            <p className="text-slate-600 mt-0.5">
+                              To prevent fraud and comply with local automotive transportation laws, please submit your valid driving license and national identity card.
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Success / Error Messages */}
+                    {kycSuccessMessage && (
+                      <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{kycSuccessMessage}</span>
+                      </div>
+                    )}
+                    {kycErrorMessage && (
+                      <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-semibold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                        <span>{kycErrorMessage}</span>
+                      </div>
+                    )}
+
+                    {/* Upload Form */}
+                    <form onSubmit={handleKycSubmit} className="mt-6 space-y-5 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1.5">
+                            National ID / Citizenship / Passport Number *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={kycForm.idCardNumber}
+                            onChange={(e) => setKycForm({ ...kycForm, idCardNumber: e.target.value })}
+                            placeholder="e.g. 27-01-79-12345 or Passport #N012345"
+                            className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#e11d2e] text-slate-900 font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1.5">
+                            Driver&apos;s License Number *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={kycForm.driverLicenseNumber}
+                            onChange={(e) => setKycForm({ ...kycForm, driverLicenseNumber: e.target.value })}
+                            placeholder="e.g. 01-06-00123456"
+                            className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#e11d2e] text-slate-900 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* File Inputs */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div className="p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 flex flex-col justify-between">
+                          <div>
+                            <span className="font-bold text-slate-800 block mb-1">
+                              Driver&apos;s License Document
+                            </span>
+                            <span className="text-[11px] text-slate-400 block mb-3">
+                              Upload photo or enter image link.
+                            </span>
+
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setKycForm((prev) => ({
+                                      ...prev,
+                                      driverLicenseImage: reader.result as string,
+                                    }));
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="w-full text-[11px] text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300 cursor-pointer"
+                            />
+
+                            <div className="mt-2">
+                              <input
+                                type="text"
+                                placeholder="Or direct URL (https://...)"
+                                value={kycForm.driverLicenseImage.startsWith("data:") ? "" : kycForm.driverLicenseImage}
+                                onChange={(e) => setKycForm({ ...kycForm, driverLicenseImage: e.target.value })}
+                                className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-[11px] outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          {kycForm.driverLicenseImage && (
+                            <div className="mt-3 flex items-center gap-2 text-emerald-700 font-semibold text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>License document attached</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/50 flex flex-col justify-between">
+                          <div>
+                            <span className="font-bold text-slate-800 block mb-1">
+                              National ID / Citizenship / Passport
+                            </span>
+                            <span className="text-[11px] text-slate-400 block mb-3">
+                              Upload photo or enter image link.
+                            </span>
+
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setKycForm((prev) => ({
+                                      ...prev,
+                                      citizenshipImage: reader.result as string,
+                                    }));
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="w-full text-[11px] text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300 cursor-pointer"
+                            />
+
+                            <div className="mt-2">
+                              <input
+                                type="text"
+                                placeholder="Or direct URL (https://...)"
+                                value={kycForm.citizenshipImage.startsWith("data:") ? "" : kycForm.citizenshipImage}
+                                onChange={(e) => setKycForm({ ...kycForm, citizenshipImage: e.target.value })}
+                                className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-[11px] outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          {kycForm.citizenshipImage && (
+                            <div className="mt-3 flex items-center gap-2 text-emerald-700 font-semibold text-[11px]">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Identity document attached</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmittingKyc}
+                        className="px-6 py-3 bg-[#e11d2e] hover:bg-[#b01524] text-white font-bold rounded-xl flex items-center gap-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        {isSubmittingKyc ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>Submit Documents for Verification</span>
+                          </>
+                        )}
+                      </button>
+                    </form>
                   </div>
                 </div>
               )}

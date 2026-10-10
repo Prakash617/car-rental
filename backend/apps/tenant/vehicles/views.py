@@ -38,7 +38,14 @@ class VehicleViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         return VehicleSerializer
 
     def get_permissions(self):
-        if self.action in ["list", "retrieve", "upload_image", "host_register"]:
+        if self.action in [
+            "list",
+            "retrieve",
+            "upload_image",
+            "host_register",
+            "booked_dates",
+            "check_availability",
+        ]:
             return [AllowAny()]
         return [IsTenantStaffOrAbove()]
 
@@ -340,6 +347,85 @@ class VehicleViewSet(StandardResponseMixin, viewsets.ModelViewSet):
         return self.success_response(
             data={"images": vehicle.images},
             message="Image removed from vehicle.",
+        )
+
+    @action(detail=True, methods=["get"], url_path="booked-dates", permission_classes=[AllowAny])
+    def booked_dates(self, request, pk=None):
+        """
+        Public endpoint returning active and upcoming reservations for this vehicle
+        so client datepickers can highlight or disable unavailable calendar slots.
+        """
+        from apps.tenant.bookings.models import Booking, BookingStatus
+        from django.utils import timezone
+        vehicle = self.get_object()
+
+        now = timezone.now()
+        active_bookings = Booking.objects.filter(
+            vehicle=vehicle,
+            status__in=[BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.ACTIVE],
+            return_datetime__gte=now,
+        ).order_by("pickup_datetime")
+
+        ranges = [
+            {
+                "id": str(b.id),
+                "reference": b.booking_reference,
+                "start": b.pickup_datetime.isoformat(),
+                "end": b.return_datetime.isoformat(),
+                "status": b.status,
+            }
+            for b in active_bookings
+        ]
+
+        return self.success_response(data={"vehicle_id": str(vehicle.id), "booked_ranges": ranges})
+
+    @action(detail=True, methods=["get"], url_path="check-availability", permission_classes=[AllowAny])
+    def check_availability(self, request, pk=None):
+        """
+        Checks whether a vehicle is free for the specified pickup and return datetime.
+        """
+        from apps.tenant.bookings.services.availability import AvailabilityService
+        from django.utils.dateparse import parse_datetime
+        vehicle = self.get_object()
+
+        pickup_str = request.query_params.get("pickup") or request.query_params.get("pickup_datetime")
+        return_str = request.query_params.get("return") or request.query_params.get("return_datetime")
+
+        if not pickup_str or not return_str:
+            return self.error_response(
+                message="Both 'pickup' and 'return' datetime parameters are required (ISO format).",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        pickup_dt = parse_datetime(pickup_str)
+        return_dt = parse_datetime(return_str)
+
+        if not pickup_dt or not return_dt:
+            return self.error_response(
+                message="Invalid datetime format. Please use ISO 8601 format (e.g. 2026-10-15T09:00:00Z).",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if return_dt <= pickup_dt:
+            return self.error_response(
+                message="Return datetime must be after pickup datetime.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        is_avail = AvailabilityService.is_vehicle_available(
+            vehicle_id=vehicle.id,
+            pickup_datetime=pickup_dt,
+            return_datetime=return_dt,
+        )
+
+        return self.success_response(
+            data={
+                "vehicle_id": str(vehicle.id),
+                "is_available": is_avail,
+                "pickup": pickup_dt.isoformat(),
+                "return": return_dt.isoformat(),
+            },
+            message="Vehicle is available for the selected dates." if is_avail else "Vehicle has a conflicting booking or maintenance for these dates."
         )
 
 

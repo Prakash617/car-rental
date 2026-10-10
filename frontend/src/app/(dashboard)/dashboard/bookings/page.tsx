@@ -42,6 +42,7 @@ import {
   confirmBooking,
   activateBooking,
   completeBooking,
+  assignDriverToBooking,
 } from "@/lib/api/bookings";
 import { Booking, Vehicle } from "@/types";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,39 @@ export default function BookingsManagementPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
+
+  // Dispatch / Assign Chauffeur modal state
+  const [showAssignDriverModal, setShowAssignDriverModal] = useState(false);
+  const [assignDriverName, setAssignDriverName] = useState("");
+  const [assignDriverPhone, setAssignDriverPhone] = useState("");
+  const [assignDriverLicense, setAssignDriverLicense] = useState("");
+
+  const handleAssignDriverSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking) return;
+    setIsProcessing(true);
+    try {
+      const updated = await assignDriverToBooking(
+        selectedBooking.id,
+        {
+          driver_name: assignDriverName.trim(),
+          driver_phone: assignDriverPhone.trim(),
+          driver_license: assignDriverLicense.trim(),
+        },
+        token || undefined
+      );
+      setBookings((prev) =>
+        prev.map((b) => (b.id === selectedBooking.id ? { ...b, vehicle: updated.vehicle, notes: updated.notes } : b))
+      );
+      setSelectedBooking(updated);
+      setShowAssignDriverModal(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to assign chauffeur";
+      alert(`Failed to assign driver: ${msg}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const loadBookings = useCallback(async () => {
     setIsLoading(true);
@@ -947,6 +981,20 @@ export default function BookingsManagementPage() {
                   </Button>
                 )}
                 <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isProcessing}
+                  onClick={() => {
+                    setAssignDriverName(selectedBooking.vehicle?.driver_name || "");
+                    setAssignDriverPhone((selectedBooking.vehicle as any)?.driver_phone || "");
+                    setAssignDriverLicense("");
+                    setShowAssignDriverModal(true);
+                  }}
+                  className="text-xs border-emerald-500/30 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold"
+                >
+                  Assign Chauffeur
+                </Button>
+                <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setSelectedBooking(null)}
@@ -957,6 +1005,90 @@ export default function BookingsManagementPage() {
               </div>
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* Assign Driver Modal Dialog */}
+      {showAssignDriverModal && selectedBooking && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-zinc-800">
+              <div>
+                <h3 className="text-base font-bold dark:text-white text-slate-900">
+                  Assign / Dispatch Chauffeur
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400">
+                  Reservation {selectedBooking.booking_reference} &bull; {selectedBooking.vehicle?.brand} {selectedBooking.vehicle?.model}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAssignDriverModal(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignDriverSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                  Chauffeur Full Name *
+                </label>
+                <Input
+                  required
+                  placeholder="e.g. Rohan Kharel"
+                  value={assignDriverName}
+                  onChange={(e) => setAssignDriverName(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                  Chauffeur Contact Phone
+                </label>
+                <Input
+                  placeholder="e.g. +977 9841234567"
+                  value={assignDriverPhone}
+                  onChange={(e) => setAssignDriverPhone(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-zinc-300 mb-1">
+                  License Number / Badge ID
+                </label>
+                <Input
+                  placeholder="e.g. DL-01-998822"
+                  value={assignDriverLicense}
+                  onChange={(e) => setAssignDriverLicense(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-zinc-800">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAssignDriverModal(false)}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={isProcessing || !assignDriverName.trim()}
+                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                >
+                  {isProcessing ? "Assigning..." : "Confirm Chauffeur Dispatch"}
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

@@ -118,16 +118,38 @@ export function StatusBadge({ type, status, className }: StatusBadgeProps) {
   }
 
   // Customer verification
-  return normalized === "true" || normalized === "verified" ? (
-    <span className={cn("inline-flex items-center gap-1 text-xs text-emerald-400 font-medium", className)}>
-      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-        <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      Verified
-    </span>
-  ) : (
-    <span className={cn("inline-flex items-center gap-1 text-xs text-amber-400/80 font-medium", className)}>
-      Pending Docs
+  if (normalized === "verified" || normalized === "true") {
+    return (
+      <span className={cn("inline-flex items-center gap-1 text-xs text-emerald-500 font-semibold", className)}>
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Verified
+      </span>
+    );
+  }
+  if (normalized === "pending") {
+    return (
+      <span className={cn("inline-flex items-center gap-1 text-xs text-amber-500 font-semibold", className)}>
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+        Pending Review
+      </span>
+    );
+  }
+  if (normalized === "rejected") {
+    return (
+      <span className={cn("inline-flex items-center gap-1 text-xs text-rose-500 font-semibold", className)}>
+        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+        Rejected
+      </span>
+    );
+  }
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-xs text-zinc-400 font-medium", className)}>
+      Unverified
     </span>
   );
 }

@@ -134,5 +134,19 @@ export async function completeBooking(
   });
 }
 
+export async function assignDriverToBooking(
+  bookingId: string,
+  driverData: { driver_name: string; driver_phone?: string; driver_license?: string },
+  token?: string,
+  tenantHost?: string
+): Promise<Booking> {
+  return apiFetch<Booking>(`/api/v1/bookings/${bookingId}/assign-driver/`, {
+    method: "POST",
+    token,
+    tenantHost,
+    body: JSON.stringify(driverData),
+  });
+}
+
 export { fetchBookings as getBookings };
 

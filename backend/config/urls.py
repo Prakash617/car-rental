@@ -10,6 +10,7 @@ from apps.tenant.branches.views import BranchViewSet
 from apps.tenant.customers.views import (
     CustomerChangePasswordView,
     CustomerGoogleAuthView,
+    CustomerKycUploadView,
     CustomerLoginView,
     CustomerSignupView,
     CustomerUpdateProfileView,
@@ -82,6 +83,7 @@ urlpatterns = [
     path("api/v1/customers/auth/google/", CustomerGoogleAuthView.as_view(), name="customer_google_auth"),
     path("api/v1/customers/auth/change-password/", CustomerChangePasswordView.as_view(), name="customer_change_password"),
     path("api/v1/customers/auth/profile/", CustomerUpdateProfileView.as_view(), name="customer_update_profile"),
+    path("api/v1/customers/kyc/upload/", CustomerKycUploadView.as_view(), name="customer_kyc_upload"),
 
     # Website & Themes
     path("api/v1/website/config/", PublicWebsiteConfigView.as_view(), name="website_config_public"),

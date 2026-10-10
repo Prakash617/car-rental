@@ -148,6 +148,93 @@ export default function VehicleDetailPage({ params }: PageProps) {
   // Active Policy tab
   const [policyTab, setPolicyTab] = useState<"rates" | "driver" | "cancellation">("rates");
 
+  // Fleet Availability & Overlap Protection
+  const [bookedRanges, setBookedRanges] = useState<
+    { id: string; reference: string; start: string; end: string }[]
+  >([]);
+  const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+  const [availabilityConflict, setAvailabilityConflict] = useState<string | null>(null);
+
+  // Load booked date ranges for vehicle
+  useEffect(() => {
+    if (!vehicle?.id) return;
+    const loadBookedDates = async () => {
+      try {
+        const res = await apiFetch<any>(`/api/v1/vehicles/${vehicle.id}/booked-dates/`);
+        const ranges = res?.data?.booked_ranges || res?.booked_ranges || [];
+        setBookedRanges(ranges);
+      } catch (e) {
+        console.warn("Failed to load booked dates:", e);
+      }
+    };
+    loadBookedDates();
+  }, [vehicle?.id]);
+
+  // Live conflict verification whenever dates change
+  useEffect(() => {
+    if (!vehicle?.id || !pickupDate || !returnDate) return;
+
+    const startIso = `${pickupDate}T${pickupTime}:00Z`;
+    const endIso = `${returnDate}T${returnTime}:00Z`;
+
+    const startTs = new Date(startIso).getTime();
+    const endTs = new Date(endIso).getTime();
+
+    if (isNaN(startTs) || isNaN(endTs)) return;
+
+    if (endTs <= startTs) {
+      setAvailabilityConflict("Return date/time must be strictly after pickup date/time.");
+      return;
+    }
+
+    // Local overlap check against known booked ranges
+    const localConflict = bookedRanges.find((r) => {
+      const bStart = new Date(r.start).getTime();
+      const bEnd = new Date(r.end).getTime();
+      return startTs < bEnd && endTs > bStart;
+    });
+
+    if (localConflict) {
+      const conflictStart = new Date(localConflict.start).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      const conflictEnd = new Date(localConflict.end).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      setAvailabilityConflict(
+        `This vehicle is already reserved from ${conflictStart} to ${conflictEnd} (${localConflict.reference}). Please choose different dates.`
+      );
+      return;
+    }
+
+    // Backend verification
+    const verifyAvailability = async () => {
+      setIsCheckingAvailability(true);
+      try {
+        const res = await apiFetch<any>(
+          `/api/v1/vehicles/${vehicle.id}/check-availability/?pickup=${startIso}&return=${endIso}`
+        );
+        const isAvailable = res?.data?.is_available ?? res?.is_available;
+        if (!isAvailable) {
+          setAvailabilityConflict(
+            res?.message || "Vehicle has a conflicting booking or maintenance for these dates."
+          );
+        } else {
+          setAvailabilityConflict(null);
+        }
+      } catch {
+        // Do not hard-block on transient network issues unless local conflict found
+      } finally {
+        setIsCheckingAvailability(false);
+      }
+    };
+
+    const timer = setTimeout(verifyAvailability, 250);
+    return () => clearTimeout(timer);
+  }, [vehicle?.id, pickupDate, pickupTime, returnDate, returnTime, bookedRanges]);
+
   // Sync customer session
   useEffect(() => {
     const syncCustomer = () => {
@@ -362,6 +449,11 @@ export default function VehicleDetailPage({ params }: PageProps) {
   const handleSubmitBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
+
+    if (availabilityConflict) {
+      setErrorMsg(availabilityConflict);
+      return;
+    }
 
     if (!currentCustomer) {
       setErrorMsg("Please create an account or sign in with Google or Email/Password to order this vehicle.");
@@ -1016,6 +1108,37 @@ export default function VehicleDetailPage({ params }: PageProps) {
                     </div>
                   </div>
 
+                  {/* Availability Conflict Alert & Live Status */}
+                  {availabilityConflict && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-red-800 text-xs font-medium flex items-start gap-2.5 animate-in fade-in duration-200">
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block text-red-950 font-bold mb-0.5">Date Conflict Detected</strong>
+                        <span>{availabilityConflict}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {!availabilityConflict && isCheckingAvailability && (
+                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 text-[11px] flex items-center gap-2">
+                      <div className="w-3 h-3 border-2 border-[#e11d2e] border-t-transparent rounded-full animate-spin" />
+                      <span>Checking fleet availability for selected schedule...</span>
+                    </div>
+                  )}
+
+                  {bookedRanges.length > 0 && (
+                    <div className="p-2.5 bg-amber-50/70 border border-amber-200/80 rounded-xl text-[11px] text-amber-800">
+                      <span className="font-bold block mb-0.5">Existing Fleet Reservations:</span>
+                      <ul className="list-disc list-inside space-y-0.5 text-amber-700">
+                        {bookedRanges.slice(0, 3).map((r) => (
+                          <li key={r.id}>
+                            {new Date(r.start).toLocaleDateString("en-US", { month: "short", day: "numeric" })} &ndash; {new Date(r.end).toLocaleDateString("en-US", { month: "short", day: "numeric" })} ({r.reference})
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {/* ================================================= */}
                   {/* AUTHENTICATION REQUIREMENT GATE FOR ORDERING      */}
                   {/* ================================================= */}
@@ -1270,11 +1393,19 @@ export default function VehicleDetailPage({ params }: PageProps) {
                   {/* Submit Button */}
                   <button
                     type="submit"
-                    disabled={isSubmitting || !currentCustomer}
-                    className="w-full h-12 bg-gradient-to-r from-[#e11d2e] via-[#d03835] to-[#b01524] hover:from-[#b01524] hover:to-[#e11d2e] disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-red-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                    disabled={isSubmitting || !currentCustomer || !!availabilityConflict || isCheckingAvailability}
+                    className={`w-full h-12 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${
+                      availabilityConflict
+                        ? "bg-slate-200 text-slate-500 border border-slate-300 cursor-not-allowed opacity-80"
+                        : "bg-gradient-to-r from-[#e11d2e] via-[#d03835] to-[#b01524] hover:from-[#b01524] hover:to-[#e11d2e] disabled:opacity-50 text-white shadow-lg shadow-red-500/25 active:scale-95 cursor-pointer"
+                    }`}
                   >
                     {isSubmitting ? (
                       <span>Confirming With Chauffeur...</span>
+                    ) : isCheckingAvailability ? (
+                      <span>Checking Availability...</span>
+                    ) : availabilityConflict ? (
+                      <span>Unavailable For Selected Dates</span>
                     ) : (
                       <>
                         <span>Confirm Reservation (10% Advance)</span>

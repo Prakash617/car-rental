@@ -14,15 +14,17 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getCustomers, createCustomer, CreateCustomerPayload } from "@/lib/api/dashboard";
+import { getCustomers, createCustomer, verifyCustomerKyc, CreateCustomerPayload } from "@/lib/api/dashboard";
 import { Customer } from "@/types";
-import { Plus } from "lucide-react";
+import { Plus, ShieldCheck, ShieldAlert, FileText, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 
 export default function CustomersDirectoryPage() {
   const { token } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifyingKyc, setIsVerifyingKyc] = useState(false);
+  const [kycNotes, setKycNotes] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -76,6 +78,29 @@ export default function CustomersDirectoryPage() {
       alert(msg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyKyc = async (status: "verified" | "rejected") => {
+    if (!selectedCustomer) return;
+    setIsVerifyingKyc(true);
+    try {
+      const updated = await verifyCustomerKyc(
+        selectedCustomer.id,
+        status,
+        kycNotes || undefined,
+        token || undefined
+      );
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+      );
+      setSelectedCustomer((prev) => (prev ? { ...prev, ...updated } : null));
+      alert(`Customer KYC verification status set to ${status.toUpperCase()}!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update customer KYC status";
+      alert(msg);
+    } finally {
+      setIsVerifyingKyc(false);
     }
   };
 
@@ -217,7 +242,7 @@ export default function CustomersDirectoryPage() {
 
                     {/* Status */}
                     <TableCell>
-                      <StatusBadge type="customer" status={c.is_verified ? "verified" : "pending"} />
+                      <StatusBadge type="customer" status={c.kyc_status || (c.is_verified ? "verified" : "unverified")} />
                     </TableCell>
 
                     {/* Registration Date */}
@@ -232,10 +257,10 @@ export default function CustomersDirectoryPage() {
         </CardContent>
       </Card>
 
-      {/* CUSTOMER DETAIL MODAL */}
+      {/* CUSTOMER DETAIL MODAL WITH KYC VERIFICATION */}
       {selectedCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <Card className="max-w-md w-full dark:border-white/[0.12] border-slate-200 dark:bg-zinc-950 bg-white p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+          <Card className="max-w-lg w-full dark:border-white/[0.12] border-slate-200 dark:bg-zinc-950 bg-white p-6 shadow-2xl relative my-8">
             <button
               onClick={() => setSelectedCustomer(null)}
               className="absolute right-4 top-4 dark:text-zinc-400 text-slate-400 dark:hover:text-white hover:text-slate-800"
@@ -251,9 +276,12 @@ export default function CustomersDirectoryPage() {
                   <h3 className="text-base font-bold dark:text-white text-slate-900">
                     {selectedCustomer.first_name} {selectedCustomer.last_name}
                   </h3>
-                  <span className="dark:text-zinc-500 text-slate-400 font-mono text-[11px]">
-                    ID: {selectedCustomer.id}
-                  </span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="dark:text-zinc-500 text-slate-400 font-mono text-[11px]">
+                      ID: {selectedCustomer.id}
+                    </span>
+                    <StatusBadge type="customer" status={selectedCustomer.kyc_status || (selectedCustomer.is_verified ? "verified" : "unverified")} />
+                  </div>
                 </div>
               </div>
 
@@ -271,12 +299,12 @@ export default function CustomersDirectoryPage() {
                   <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.driver_license_number}</span>
                 </div>
                 <div>
-                  <span className="dark:text-zinc-500 text-slate-500 block">License Expiry</span>
-                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.license_expiry_date}</span>
+                  <span className="dark:text-zinc-500 text-slate-500 block">Citizenship / National ID</span>
+                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.id_card_number || "Not provided"}</span>
                 </div>
                 <div>
-                  <span className="dark:text-zinc-500 text-slate-500 block">Date of Birth</span>
-                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.date_of_birth}</span>
+                  <span className="dark:text-zinc-500 text-slate-500 block">License Expiry</span>
+                  <span className="dark:text-zinc-200 text-slate-800 font-mono mt-0.5 block">{selectedCustomer.license_expiry_date || "—"}</span>
                 </div>
                 <div>
                   <span className="dark:text-zinc-500 text-slate-500 block">Country</span>
@@ -284,13 +312,89 @@ export default function CustomersDirectoryPage() {
                 </div>
               </div>
 
-              <div className="pt-2 border-t dark:border-white/[0.08] border-slate-100 flex items-center justify-between">
-                <div>
-                  <span className="text-zinc-500 block">Verification Status</span>
-                  <div className="mt-1">
-                    <StatusBadge type="customer" status={selectedCustomer.is_verified ? "verified" : "pending"} />
+              {/* KYC Document Previews */}
+              <div className="pt-3 border-t dark:border-white/[0.08] border-slate-100 space-y-2">
+                <span className="dark:text-zinc-400 text-slate-600 font-semibold block">KYC Document Records</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2.5 rounded-xl dark:bg-white/[0.03] bg-slate-50 border dark:border-white/[0.08] border-slate-200">
+                    <span className="dark:text-zinc-400 text-slate-500 text-[11px] block">Driver&apos;s License</span>
+                    {selectedCustomer.driver_license_image ? (
+                      <a
+                        href={selectedCustomer.driver_license_image}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>View Document</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-zinc-500 italic mt-1 block">No file uploaded</span>
+                    )}
+                  </div>
+
+                  <div className="p-2.5 rounded-xl dark:bg-white/[0.03] bg-slate-50 border dark:border-white/[0.08] border-slate-200">
+                    <span className="dark:text-zinc-400 text-slate-500 text-[11px] block">National ID / Passport</span>
+                    {selectedCustomer.citizenship_image ? (
+                      <a
+                        href={selectedCustomer.citizenship_image}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 flex items-center gap-1.5 text-blue-500 hover:underline font-semibold"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>View Document</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-zinc-500 italic mt-1 block">No file uploaded</span>
+                    )}
                   </div>
                 </div>
+
+                {selectedCustomer.kyc_notes && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px]">
+                    <span className="font-semibold block">Previous Audit Note:</span>
+                    <p className="mt-0.5">{selectedCustomer.kyc_notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Staff KYC Review Controls */}
+              <div className="pt-3 border-t dark:border-white/[0.08] border-slate-100 space-y-2">
+                <span className="dark:text-zinc-400 text-slate-600 font-semibold block">Staff KYC Review Decision</span>
+                <Input
+                  value={kycNotes}
+                  onChange={(e) => setKycNotes(e.target.value)}
+                  placeholder="Verification note (e.g. License verified with Nagarik App / blur document)..."
+                  className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-xs"
+                />
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    size="sm"
+                    disabled={isVerifyingKyc}
+                    onClick={() => handleVerifyKyc("verified")}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                    Approve KYC
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={isVerifyingKyc}
+                    onClick={() => handleVerifyKyc("rejected")}
+                    className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs"
+                  >
+                    <XCircle className="w-3.5 h-3.5 mr-1" />
+                    Reject KYC
+                  </Button>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t dark:border-white/[0.08] border-slate-100 flex justify-end">
                 <Button
                   variant="outline"
                   size="sm"
