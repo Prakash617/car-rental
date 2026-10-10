@@ -52,75 +52,52 @@ export function triggerGoogleOAuth({
   onFallback: () => void;
   setLoading?: (loading: boolean) => void;
 }) {
-  if (typeof window === "undefined") return;
+  const clientId =
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ||
+    "917746573259-kdmeuhf2oe3us7fmgiqc0bcvojb0qt1o.apps.googleusercontent.com";
 
-  const width = 500;
-  const height = 650;
-  const left = window.screenX + Math.max(0, (window.outerWidth - width) / 2);
-  const top = window.screenY + Math.max(0, (window.outerHeight - height) / 2);
+  if (typeof window !== "undefined" && (window as any).google?.accounts?.oauth2) {
+    try {
+      const client = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: "email profile openid",
+        callback: async (tokenResponse: any) => {
+          if (tokenResponse?.error) {
+            console.warn("Google OAuth response error:", tokenResponse.error);
+            onError(tokenResponse.error_description || tokenResponse.error || "Google authentication was cancelled.");
+            return;
+          }
 
-  const port = window.location.port ? `:${window.location.port}` : "";
-  // Central origin that matches the Google Cloud Console Authorized JavaScript origins
-  const centralOrigin = `http://localhost${port}`;
-  const popupUrl = `${centralOrigin}/auth/google`;
+          if (tokenResponse?.access_token) {
+            setLoading?.(true);
+            try {
+              const customer = await authenticateWithGoogleToken({
+                access_token: tokenResponse.access_token,
+              });
+              onSuccess(customer);
+            } catch (err: any) {
+              onError(err.message || "Failed to authenticate with Google.");
+            } finally {
+              setLoading?.(false);
+            }
+          }
+        },
+        error_callback: (err: any) => {
+          console.warn("Google token client error:", err);
+          onError(err?.message || "Google authorization error. Please try again.");
+        },
+      });
 
-  let popup: Window | null = null;
-  try {
-    popup = window.open(
-      popupUrl,
-      "google_oauth_bridge",
-      `width=${width},height=${height},left=${left},top=${top},status=no,menubar=no,toolbar=no`
-    );
-  } catch (e) {
-    console.warn("Popup blocked or failed:", e);
-  }
-
-  if (!popup || popup.closed) {
-    // Popup was blocked by browser or failed, fallback to modal
-    onFallback();
-    return;
-  }
-
-  setLoading?.(true);
-
-  const handleMessage = async (event: MessageEvent) => {
-    // Only accept messages from our trusted central origin
-    if (
-      event.origin !== centralOrigin &&
-      !event.origin.includes("localhost")
-    ) {
+      // Opens exactly ONE popup directly from Google Identity Services
+      client.requestAccessToken({ prompt: "select_account" });
+      return;
+    } catch (e: any) {
+      console.warn("Error launching Google OAuth client:", e);
+      onError(e.message || "Failed to open Google Sign-In.");
       return;
     }
+  }
 
-    if (event.data?.type === "GOOGLE_AUTH_SUCCESS" && event.data?.access_token) {
-      window.removeEventListener("message", handleMessage);
-      clearInterval(timer);
-      try {
-        const customer = await authenticateWithGoogleToken({
-          access_token: event.data.access_token,
-        });
-        onSuccess(customer);
-      } catch (err: any) {
-        onError(err.message || "Failed to authenticate with Google.");
-      } finally {
-        setLoading?.(false);
-      }
-    } else if (event.data?.type === "GOOGLE_AUTH_ERROR") {
-      window.removeEventListener("message", handleMessage);
-      clearInterval(timer);
-      setLoading?.(false);
-      onError(event.data?.error || "Google authentication failed.");
-    }
-  };
-
-  window.addEventListener("message", handleMessage);
-
-  // Poll for popup closing without sending message
-  const timer = setInterval(() => {
-    if (popup && popup.closed) {
-      clearInterval(timer);
-      window.removeEventListener("message", handleMessage);
-      setLoading?.(false);
-    }
-  }, 1000);
+  // Fallback to manual modal if Google Identity Services script failed to load
+  onFallback();
 }
