@@ -67,7 +67,7 @@ export function Topbar() {
   const clientDropdownItems = [
     { label: "Profile", href: "/client", icon: User },
     { label: "My Bookings", href: "/client", icon: Calendar },
-    { label: "Carpool", href: "/search?trip_type=tour", icon: Users },
+    { label: "Carpool", href: "/carpool", icon: Users },
     { label: "My Inquiries", href: "/contact", icon: HelpCircle },
     { label: "My Vehicles", href: "/list-your-car", icon: Car },
     { label: "Change Password", href: "/client", icon: Key },

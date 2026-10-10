@@ -4,7 +4,13 @@ from apps.tenant.branches.serializers import BranchSerializer
 from apps.tenant.customers.serializers import CustomerSerializer
 from apps.tenant.vehicles.serializers import VehicleSerializer
 
-from .models import Booking, BookingAddon
+from .models import (
+    Booking,
+    BookingAddon,
+    CarpoolAlertSubscription,
+    CarpoolBookingRequest,
+    CarpoolRide,
+)
 
 
 class BookingAddonSerializer(serializers.ModelSerializer):
@@ -107,3 +113,76 @@ class CreateBookingSerializer(serializers.Serializer):
                 "return_datetime must be strictly after pickup_datetime."
             )
         return attrs
+
+
+class CarpoolBookingRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CarpoolBookingRequest
+        fields = [
+            "id",
+            "ride",
+            "passenger_name",
+            "passenger_phone",
+            "passenger_email",
+            "seats_requested",
+            "pickup_point",
+            "dropoff_point",
+            "total_amount",
+            "status",
+            "notes",
+            "created_at",
+        ]
+        read_only_fields = ["id", "status", "created_at"]
+
+
+class CarpoolRideSerializer(serializers.ModelSerializer):
+    booking_requests_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CarpoolRide
+        fields = [
+            "id",
+            "origin_city",
+            "origin_point",
+            "destination_city",
+            "destination_point",
+            "departure_datetime",
+            "vehicle_model",
+            "vehicle_type",
+            "vehicle_image",
+            "total_seats",
+            "available_seats",
+            "price_per_seat",
+            "driver_name",
+            "driver_phone",
+            "driver_rating",
+            "driver_trips",
+            "is_driver_verified",
+            "features",
+            "notes",
+            "status",
+            "created_at",
+            "booking_requests_count",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def get_booking_requests_count(self, obj):
+        return obj.booking_requests.count()
+
+
+class CarpoolAlertSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CarpoolAlertSubscription
+        fields = [
+            "id",
+            "origin_city",
+            "destination_city",
+            "preferred_date",
+            "phone",
+            "email",
+            "passenger_count",
+            "is_active",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+

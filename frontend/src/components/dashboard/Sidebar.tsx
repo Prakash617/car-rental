@@ -233,7 +233,7 @@ export function Sidebar() {
               <span>Profile & Bookings</span>
             </Link>
             <Link
-              href="/search?trip_type=tour"
+              href="/carpool"
               className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium dark:text-zinc-400 text-slate-600 dark:hover:bg-white/[0.03] hover:bg-slate-100/70 dark:hover:text-white hover:text-slate-900 transition-colors"
             >
               <Users className="h-4 w-4 dark:text-zinc-400 text-slate-500" />

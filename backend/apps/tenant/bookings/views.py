@@ -10,9 +10,18 @@ from apps.tenant.vehicles.models import Vehicle
 from common.permissions.tenant import IsTenantStaffOrAbove
 from common.responses.standard import StandardResponseMixin
 
-from .models import Booking, BookingStatus
+from .models import (
+    Booking,
+    BookingStatus,
+    CarpoolAlertSubscription,
+    CarpoolBookingRequest,
+    CarpoolRide,
+)
 from .serializers import (
     BookingSerializer,
+    CarpoolAlertSubscriptionSerializer,
+    CarpoolBookingRequestSerializer,
+    CarpoolRideSerializer,
     CreateBookingSerializer,
     QuoteRequestSerializer,
 )
@@ -339,3 +348,331 @@ class BookingViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             data=BookingSerializer(booking).data,
             message=f"Chauffeur {driver_name} assigned to booking {booking.booking_reference}.",
         )
+
+
+class CarpoolRideViewSet(StandardResponseMixin, viewsets.ModelViewSet):
+    """
+    Public Carpool & Shared Travel Marketplace endpoint matching sajilorental.com/carpool.
+    Supports filtering by origin city, destination city, date, and seat count.
+    Also handles passenger seat booking requests, driver ride publishing, and route alert subscriptions.
+    """
+
+    serializer_class = CarpoolRideSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ["origin_city", "destination_city", "vehicle_type", "status"]
+    search_fields = ["origin_city", "destination_city", "origin_point", "destination_point", "driver_name", "vehicle_model"]
+    ordering_fields = ["departure_datetime", "price_per_seat", "available_seats"]
+    ordering = ["departure_datetime"]
+
+    def get_queryset(self):
+        from django.utils import timezone
+        import datetime
+
+        # Ensure demo seed exists if table is empty
+        if not CarpoolRide.objects.exists():
+            now = timezone.now()
+            default_rides = [
+                {
+                    "origin_city": "Kathmandu",
+                    "origin_point": "Kalanki Chowk / Balkhu Gate",
+                    "destination_city": "Pokhara",
+                    "destination_point": "Prithvi Chowk / Lakeside Center",
+                    "departure_datetime": now + datetime.timedelta(hours=4),
+                    "vehicle_model": "Toyota EV HiAce Super Long",
+                    "vehicle_type": "EV Hiace",
+                    "vehicle_image": "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80",
+                    "total_seats": 14,
+                    "available_seats": 5,
+                    "price_per_seat": 950.00,
+                    "driver_name": "Rameshwor Thapa",
+                    "driver_phone": "+977 9841238910",
+                    "driver_rating": 4.9,
+                    "driver_trips": 182,
+                    "is_driver_verified": True,
+                    "features": ["AC", "Luggage Storage", "EV Silent Drive", "Free Bottled Water"],
+                    "notes": "Direct Mugling highway route. Max 1 medium suitcase per passenger.",
+                },
+                {
+                    "origin_city": "Kathmandu",
+                    "origin_point": "Koteshwor / Jadibuti Bus Stop",
+                    "destination_city": "Chitwan (Bharatpur)",
+                    "destination_point": "Chaubiskothi / Sauraha Gate",
+                    "departure_datetime": now + datetime.timedelta(hours=6),
+                    "vehicle_model": "Mahindra Scorpio S11 4x4",
+                    "vehicle_type": "Scorpio",
+                    "vehicle_image": "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=800&q=80",
+                    "total_seats": 7,
+                    "available_seats": 3,
+                    "price_per_seat": 1200.00,
+                    "driver_name": "Dipesh Shrestha",
+                    "driver_phone": "+977 9801928472",
+                    "driver_rating": 4.8,
+                    "driver_trips": 94,
+                    "is_driver_verified": True,
+                    "features": ["AC", "Spacious 4x4 Legroom", "Roof Luggage Carrier", "No Smoking"],
+                    "notes": "Express travel to Bharatpur. Pickup from Koteshwor or Kalanki.",
+                },
+                {
+                    "origin_city": "Pokhara",
+                    "origin_point": "Lakeside Hallan Chowk",
+                    "destination_city": "Kathmandu",
+                    "destination_point": "Kalanki / Gongabu Bus Park",
+                    "departure_datetime": now + datetime.timedelta(days=1, hours=2),
+                    "vehicle_model": "Hyundai Ioniq 5 Luxury EV",
+                    "vehicle_type": "Sedan Car (EV)",
+                    "vehicle_image": "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&w=800&q=80",
+                    "total_seats": 4,
+                    "available_seats": 2,
+                    "price_per_seat": 1600.00,
+                    "driver_name": "Subash Gurung",
+                    "driver_phone": "+977 9813894721",
+                    "driver_rating": 5.0,
+                    "driver_trips": 210,
+                    "is_driver_verified": True,
+                    "features": ["Executive EV Comfort", "Ultra Fast Route", "Phone Charger", "Air Conditioner"],
+                    "notes": "Premium quiet EV ride from Lakeside to Kathmandu.",
+                },
+                {
+                    "origin_city": "Kathmandu",
+                    "origin_point": "Koteshwor Highway Stop",
+                    "destination_city": "Dharan",
+                    "destination_point": "Bhanu Chowk / Ghantaghar",
+                    "departure_datetime": now + datetime.timedelta(days=1, hours=8),
+                    "vehicle_model": "Toyota Coaster Deluxe Coach",
+                    "vehicle_type": "Deluxe Bus",
+                    "vehicle_image": "https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=800&q=80",
+                    "total_seats": 22,
+                    "available_seats": 8,
+                    "price_per_seat": 1500.00,
+                    "driver_name": "Krishna Bahadur Rai",
+                    "driver_phone": "+977 9842839102",
+                    "driver_rating": 4.9,
+                    "driver_trips": 320,
+                    "is_driver_verified": True,
+                    "features": ["Pushback Luxury Seats", "AC & Heating", "Large Trunk", "USB Ports"],
+                    "notes": "BP Highway route via Sindhuli. Fast day journey to Dharan.",
+                },
+                {
+                    "origin_city": "Kathmandu",
+                    "origin_point": "Kalanki Ring Road",
+                    "destination_city": "Butwal",
+                    "destination_point": "Traffic Chowk / Milan Chowk",
+                    "departure_datetime": now + datetime.timedelta(days=2, hours=3),
+                    "vehicle_model": "Suzuki Ertiga Hybrid Smart",
+                    "vehicle_type": "Mini Van",
+                    "vehicle_image": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80",
+                    "total_seats": 6,
+                    "available_seats": 4,
+                    "price_per_seat": 1300.00,
+                    "driver_name": "Anil KC",
+                    "driver_phone": "+977 9857029384",
+                    "driver_rating": 4.7,
+                    "driver_trips": 87,
+                    "is_driver_verified": True,
+                    "features": ["AC", "Comfortable Seating", "Direct Narayanghat Route"],
+                    "notes": "Smooth family-friendly ride to Butwal.",
+                },
+            ]
+            for r in default_rides:
+                CarpoolRide.objects.create(**r)
+
+        qs = CarpoolRide.objects.filter(status__in=["active", "full"]).order_by("departure_datetime")
+
+        # Query filters
+        origin = self.request.query_params.get("from") or self.request.query_params.get("origin_city")
+        dest = self.request.query_params.get("to") or self.request.query_params.get("destination_city")
+        date_str = self.request.query_params.get("date")
+        seats = self.request.query_params.get("seats")
+
+        if origin:
+            qs = qs.filter(origin_city__icontains=origin.strip())
+        if dest:
+            qs = qs.filter(destination_city__icontains=dest.strip())
+        if date_str:
+            try:
+                dt = datetime.date.fromisoformat(date_str)
+                qs = qs.filter(departure_datetime__date=dt)
+            except (ValueError, TypeError):
+                pass
+        if seats:
+            try:
+                s_int = int(seats)
+                qs = qs.filter(available_seats__gte=s_int)
+            except (ValueError, TypeError):
+                pass
+
+        return qs
+
+    @action(detail=True, methods=["post"], url_path="request-seat", permission_classes=[AllowAny])
+    def request_seat(self, request, pk=None):
+        """
+        Reserve seat(s) on a published carpool ride.
+        Returns: 'Booking request sent — we will contact you soon.'
+        """
+        ride = self.get_object()
+        data = request.data
+        passenger_name = data.get("passenger_name", "").strip()
+        passenger_phone = data.get("passenger_phone", "").strip()
+        passenger_email = data.get("passenger_email", "").strip()
+        pickup_point = data.get("pickup_point", ride.origin_point).strip()
+        dropoff_point = data.get("dropoff_point", ride.destination_point).strip()
+        notes = data.get("notes", "").strip()
+
+        try:
+            seats_requested = int(data.get("seats_requested", 1))
+        except (ValueError, TypeError):
+            seats_requested = 1
+
+        if not passenger_name or not passenger_phone:
+            return self.error_response(
+                message="Passenger name and contact phone number are required.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if seats_requested <= 0:
+            return self.error_response(
+                message="At least 1 seat must be requested.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if ride.available_seats < seats_requested:
+            return self.error_response(
+                message=f"Only {ride.available_seats} seat(s) remain available on this vehicle.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        total_amount = ride.price_per_seat * seats_requested
+
+        booking_req = CarpoolBookingRequest.objects.create(
+            ride=ride,
+            passenger_name=passenger_name,
+            passenger_phone=passenger_phone,
+            passenger_email=passenger_email,
+            seats_requested=seats_requested,
+            pickup_point=pickup_point,
+            dropoff_point=dropoff_point,
+            total_amount=total_amount,
+            status="approved",
+            notes=notes,
+        )
+
+        # Decrement remaining seats
+        ride.available_seats -= seats_requested
+        if ride.available_seats == 0:
+            ride.status = "full"
+        ride.save(update_fields=["available_seats", "status"])
+
+        return self.success_response(
+            data={
+                "request": CarpoolBookingRequestSerializer(booking_req).data,
+                "ride": CarpoolRideSerializer(ride).data,
+            },
+            message="Booking request sent — we will contact you soon.",
+            status_code=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=["post"], url_path="subscribe-alert", permission_classes=[AllowAny])
+    def subscribe_alert(self, request):
+        """
+        Subscribe for route notifications when no carpools match the user's travel date/route.
+        """
+        data = request.data
+        origin = data.get("origin_city") or data.get("from", "Kathmandu")
+        destination = data.get("destination_city") or data.get("to", "Pokhara")
+        phone = data.get("phone", "").strip()
+        email = data.get("email", "").strip()
+        preferred_date = data.get("preferred_date")
+
+        if not phone and not email:
+            return self.error_response(
+                message="Phone or email is required to receive route availability notifications.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        import datetime
+        date_obj = None
+        if preferred_date:
+            try:
+                date_obj = datetime.date.fromisoformat(preferred_date)
+            except (ValueError, TypeError):
+                pass
+
+        subscription = CarpoolAlertSubscription.objects.create(
+            origin_city=origin.strip(),
+            destination_city=destination.strip(),
+            preferred_date=date_obj,
+            phone=phone,
+            email=email,
+            passenger_count=int(data.get("passenger_count", 1) or 1),
+        )
+
+        return self.success_response(
+            data=CarpoolAlertSubscriptionSerializer(subscription).data,
+            message="Subscribed to route alerts! We will notify you via SMS / Email once a vehicle is published.",
+            status_code=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=False, methods=["post"], url_path="publish-ride", permission_classes=[AllowAny])
+    def publish_ride(self, request):
+        """
+        Driver or fleet host publishing a new carpool departure.
+        """
+        data = request.data
+        origin_city = data.get("origin_city", "").strip()
+        destination_city = data.get("destination_city", "").strip()
+        departure_datetime = data.get("departure_datetime")
+        driver_name = data.get("driver_name", "").strip()
+        driver_phone = data.get("driver_phone", "").strip()
+
+        if not origin_city or not destination_city or not departure_datetime:
+            return self.error_response(
+                message="Departure city, destination city, and departure date/time are required.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not driver_name or not driver_phone:
+            return self.error_response(
+                message="Driver name and direct phone number are required.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from django.utils.dateparse import parse_datetime
+        dt = parse_datetime(departure_datetime)
+        if not dt:
+            return self.error_response(
+                message="Invalid departure_datetime format (use ISO 8601).",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        total_seats = int(data.get("total_seats", 4) or 4)
+        available_seats = int(data.get("available_seats", total_seats) or total_seats)
+        price_per_seat = float(data.get("price_per_seat", 1000.00) or 1000.00)
+
+        ride = CarpoolRide.objects.create(
+            origin_city=origin_city,
+            origin_point=data.get("origin_point", f"{origin_city} Central").strip(),
+            destination_city=destination_city,
+            destination_point=data.get("destination_point", f"{destination_city} Central").strip(),
+            departure_datetime=dt,
+            vehicle_model=data.get("vehicle_model", "Standard Sedan / EV").strip(),
+            vehicle_type=data.get("vehicle_type", "Sedan").strip(),
+            vehicle_image=data.get("vehicle_image", "").strip(),
+            total_seats=total_seats,
+            available_seats=available_seats,
+            price_per_seat=price_per_seat,
+            driver_name=driver_name,
+            driver_phone=driver_phone,
+            driver_rating=4.9,
+            driver_trips=12,
+            is_driver_verified=True,
+            features=data.get("features", ["AC", "Direct Route"]),
+            notes=data.get("notes", "").strip(),
+        )
+
+        return self.success_response(
+            data=CarpoolRideSerializer(ride).data,
+            message=f"Shared ride from {origin_city} to {destination_city} published successfully!",
+            status_code=status.HTTP_201_CREATED,
+        )
+

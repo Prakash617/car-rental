@@ -158,6 +158,58 @@ export interface Coupon {
   is_active: boolean;
 }
 
+export interface CarpoolRide {
+  id: string;
+  origin_city: string;
+  origin_point: string;
+  destination_city: string;
+  destination_point: string;
+  departure_datetime: string;
+  vehicle_model: string;
+  vehicle_type: string;
+  vehicle_image?: string;
+  total_seats: number;
+  available_seats: number;
+  price_per_seat: string;
+  driver_name: string;
+  driver_phone: string;
+  driver_rating: string | number;
+  driver_trips: number;
+  is_driver_verified: boolean;
+  features: string[];
+  notes?: string;
+  status: "active" | "full" | "completed" | "cancelled";
+  created_at: string;
+  booking_requests_count?: number;
+}
+
+export interface CarpoolBookingRequest {
+  id: string;
+  ride: string;
+  passenger_name: string;
+  passenger_phone: string;
+  passenger_email?: string;
+  seats_requested: number;
+  pickup_point?: string;
+  dropoff_point?: string;
+  total_amount: string;
+  status: "pending" | "approved" | "rejected";
+  notes?: string;
+  created_at: string;
+}
+
+export interface CarpoolAlertSubscription {
+  id: string;
+  origin_city: string;
+  destination_city: string;
+  preferred_date?: string | null;
+  phone: string;
+  email?: string;
+  passenger_count: number;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string;

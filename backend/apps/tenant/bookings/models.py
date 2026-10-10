@@ -125,3 +125,94 @@ class BookingAddon(models.Model):
 
     def __str__(self):
         return f"{self.name} x{self.quantity} (${self.price})"
+
+
+class CarpoolRide(models.Model):
+    """
+    Published shared travel ride between cities/districts across Nepal.
+    Matches Sajilo Rental Carpool marketplace architecture.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    origin_city = models.CharField("Departure City", max_length=100, default="Kathmandu", db_index=True)
+    origin_point = models.CharField("Pickup Stop / Landmark", max_length=200, default="Kalanki / Koteshwor")
+    destination_city = models.CharField("Arrival City", max_length=100, default="Pokhara", db_index=True)
+    destination_point = models.CharField("Dropoff Stop / Landmark", max_length=200, default="Prithvi Chowk / Lakeside")
+    departure_datetime = models.DateTimeField("Departure Date & Time", db_index=True)
+
+    # Vehicle specifications
+    vehicle_model = models.CharField("Vehicle Model", max_length=120, default="Toyota EV HiAce (14 Seater)")
+    vehicle_type = models.CharField("Vehicle Category", max_length=50, default="EV Hiace")
+    vehicle_image = models.TextField("Vehicle Photo URL", blank=True, default="")
+    total_seats = models.PositiveIntegerField("Total Capacity", default=10)
+    available_seats = models.PositiveIntegerField("Remaining Seats", default=4)
+    price_per_seat = models.DecimalField("Fare per Passenger (NPR)", max_digits=10, decimal_places=2, default=950.00)
+
+    # Driver profile
+    driver_name = models.CharField("Driver Full Name", max_length=120, default="Ramesh Adhikari")
+    driver_phone = models.CharField("Driver Phone", max_length=50, default="+977 9801234567")
+    driver_rating = models.DecimalField("Driver Rating", max_digits=3, decimal_places=1, default=4.9)
+    driver_trips = models.PositiveIntegerField("Completed Trips", default=145)
+    is_driver_verified = models.BooleanField("Verified Chauffeur", default=True)
+
+    # Features and policies
+    features = models.JSONField("Amenities", default=list, blank=True)
+    notes = models.TextField("Route Notes & Baggage Limit", blank=True, default="")
+    status = models.CharField("Ride Status", max_length=20, default="active")  # active, full, completed, cancelled
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Carpool Ride"
+        verbose_name_plural = "Carpool Rides"
+        ordering = ["departure_datetime"]
+
+    def __str__(self):
+        return f"{self.origin_city} -> {self.destination_city} ({self.departure_datetime.strftime('%b %d %H:%M')})"
+
+
+class CarpoolBookingRequest(models.Model):
+    """
+    Passenger booking request for reserved seat(s) on a published carpool ride.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ride = models.ForeignKey(CarpoolRide, on_delete=models.CASCADE, related_name="booking_requests")
+    passenger_name = models.CharField("Passenger Name", max_length=120)
+    passenger_phone = models.CharField("Contact Phone", max_length=50)
+    passenger_email = models.EmailField("Email", blank=True, default="")
+    seats_requested = models.PositiveIntegerField("Seats Reserved", default=1)
+    pickup_point = models.CharField("Preferred Pickup Landmark", max_length=200, blank=True, default="")
+    dropoff_point = models.CharField("Preferred Dropoff Landmark", max_length=200, blank=True, default="")
+    total_amount = models.DecimalField("Total Fare (NPR)", max_digits=10, decimal_places=2, default=0.00)
+    status = models.CharField("Booking Request Status", max_length=20, default="approved")  # pending, approved, rejected
+    notes = models.TextField("Passenger Request Notes", blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Carpool Booking Request"
+        verbose_name_plural = "Carpool Booking Requests"
+        ordering = ["-created_at"]
+
+
+class CarpoolAlertSubscription(models.Model):
+    """
+    Route alert notification subscription when no rides are published for a route.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    origin_city = models.CharField("Origin City", max_length=100)
+    destination_city = models.CharField("Destination City", max_length=100)
+    preferred_date = models.DateField("Target Date", null=True, blank=True)
+    phone = models.CharField("Alert Phone", max_length=50)
+    email = models.EmailField("Alert Email", blank=True, default="")
+    passenger_count = models.PositiveIntegerField("Seats Needed", default=1)
+    is_active = models.BooleanField("Active Subscription", default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Carpool Alert Subscription"
+        verbose_name_plural = "Carpool Alert Subscriptions"
+        ordering = ["-created_at"]
+

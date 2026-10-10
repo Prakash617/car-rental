@@ -112,7 +112,7 @@ export function Navbar({ branding }: NavbarProps) {
   const navLinks = [
     { label: "Home", href: "/" },
     { label: "Browse Vehicles", href: "/search" },
-    { label: "Carpool", href: "/search?trip_type=tour" },
+    { label: "Carpool", href: "/carpool" },
     { label: "Become a host", href: "/list-your-car" },
     { label: "About", href: "/about" },
     { label: "Blog", href: "/blog" },
@@ -123,7 +123,7 @@ export function Navbar({ branding }: NavbarProps) {
   const drawerSectionOne = [
     { label: "Home", href: "/", icon: Home },
     { label: "Browse Vehicles", href: "/search", icon: Search },
-    { label: "Carpool", href: "/search?trip_type=tour", icon: Users },
+    { label: "Carpool", href: "/carpool", icon: Users },
     { label: "Become a host", href: "/list-your-car", icon: PlusCircle },
     { label: "About", href: "/about", icon: Info },
     { label: "Blog", href: "/blog", icon: Newspaper },
@@ -134,7 +134,7 @@ export function Navbar({ branding }: NavbarProps) {
   const drawerSectionTwo = [
     { label: "Profile", href: "/client", icon: User },
     { label: "My Bookings", href: "/client", icon: Calendar },
-    { label: "Carpool", href: "/search?trip_type=tour", icon: Users },
+    { label: "Carpool", href: "/carpool", icon: Users },
     { label: "My Inquiries", href: "/contact", icon: HelpCircle },
     { label: "My Vehicles", href: "/list-your-car", icon: Car },
     { label: "Change Password", href: "/client", icon: Key },
@@ -376,7 +376,7 @@ export function Navbar({ branding }: NavbarProps) {
                     </Link>
 
                     <Link
-                      href="/search?trip_type=tour"
+                      href="/carpool"
                       onClick={() => setUserDropdownOpen(false)}
                       className="flex items-center gap-3.5 px-5 py-2 hover:bg-slate-50 text-slate-800 transition-colors"
                     >

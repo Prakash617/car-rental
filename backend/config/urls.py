@@ -5,7 +5,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from apps.platform.platform_users.views import CurrentUserView, LoginView
-from apps.tenant.bookings.views import BookingViewSet, QuoteView
+from apps.tenant.bookings.views import BookingViewSet, CarpoolRideViewSet, QuoteView
 from apps.tenant.branches.views import BranchViewSet
 from apps.tenant.customers.views import (
     CustomerChangePasswordView,
@@ -58,6 +58,7 @@ router.register(r"audit", AuditLogViewSet, basename="audit-log")
 router.register(r"pricing/seasonal-rates", SeasonalRateViewSet, basename="seasonal-rate")
 router.register(r"pricing/coupons", CouponViewSet, basename="coupon")
 router.register(r"pricing/addons", ExtraAddonViewSet, basename="addon")
+router.register(r"carpool", CarpoolRideViewSet, basename="carpool")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
