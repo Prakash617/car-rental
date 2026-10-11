@@ -13,7 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Apex Luxury Concierge | Multi-Tenant Car Rental SaaS",
+  title: {
+    default: "Apex Mobility | Multi-Tenant Car Rental SaaS",
+    template: "%s",
+  },
   description: "Enterprise multi-tenant automotive hire platform with dynamic theme engine and real-time fleet availability.",
 };
 

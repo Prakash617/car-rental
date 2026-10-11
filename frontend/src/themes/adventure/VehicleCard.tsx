@@ -82,13 +82,13 @@ export function AdventureVehicleCard({ vehicle, branding, onSelect }: VehicleCar
             <span className="text-[11px] text-stone-400 block">Overland Rate</span>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-mono tabular-nums font-extrabold text-stone-100">
-                {branding.currency || "USD"} {vehicle.daily_rate}
+                {branding.currency || "Rs."} {vehicle.daily_rate}
               </span>
               <span className="text-xs text-stone-400">/day</span>
             </div>
             {vehicle.deposit_amount && (
               <span className="text-[10px] text-stone-500 flex items-center gap-1 mt-0.5 font-mono">
-                <ShieldAlert className="w-2.5 h-2.5 text-stone-400" /> Trail Deposit: {branding.currency || "USD"} {vehicle.deposit_amount}
+                <ShieldAlert className="w-2.5 h-2.5 text-stone-400" /> Trail Deposit: {branding.currency || "Rs."} {vehicle.deposit_amount}
               </span>
             )}
           </div>

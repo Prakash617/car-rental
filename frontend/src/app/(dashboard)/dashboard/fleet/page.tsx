@@ -18,6 +18,15 @@ import {
   Pencil,
   Trash2,
   UploadCloud,
+  ShieldCheck,
+  Eye,
+  FileText,
+  User,
+  Phone,
+  Mail,
+  MapPin,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +43,8 @@ import {
   updateVehicle,
   deleteVehicle,
   uploadVehicleImage,
+  approveHostVehicle,
+  rejectHostVehicle,
   UploadImageResult,
   CreateVehiclePayload,
 } from "@/lib/api/vehicles";
@@ -41,7 +52,8 @@ import { fetchBranches, createBranch, Branch } from "@/lib/api/branches";
 import { fetchCategories, CategoryItem } from "@/lib/api/categories";
 import { fetchTransmissions, TransmissionItem } from "@/lib/api/transmissions";
 import { updateVehicleStatus } from "@/lib/api/dashboard";
-import { getSafeImageUrl } from "@/lib/utils";
+import { getSafeImageUrl, getCurrencySymbol } from "@/lib/utils";
+import { useBranding } from "@/lib/context/branding";
 import { Vehicle, VehicleCategory, VehicleStatus } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
@@ -74,8 +86,25 @@ const IMAGE_PRESETS = [
 ];
 
 export default function FleetManagementPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const queryClient = useQueryClient();
+
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
+
+  let currencySymbol = "Rs.";
+  try {
+    const branding = useBranding();
+    currencySymbol = getCurrencySymbol(branding?.currency);
+  } catch {
+    currencySymbol = "Rs.";
+  }
+
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -85,6 +114,111 @@ export default function FleetManagementPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // View Tab: "all" or "pending" (Host Approvals)
+  const [activeViewTab, setActiveViewTab] = useState<"all" | "pending">("all");
+
+  // Host Vehicle Review Modal State
+  const [reviewingVehicle, setReviewingVehicle] = useState<Vehicle | null>(null);
+  const [reviewDailyRate, setReviewDailyRate] = useState<string>("");
+  const [reviewCategory, setReviewCategory] = useState<string>("");
+  const [isReviewSubmitting, setIsReviewSubmitting] = useState<boolean>(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const spStatus = new URLSearchParams(window.location.search).get("status");
+      if (spStatus === "pending_approval") {
+        setStatusFilter("pending_approval");
+        setActiveViewTab("pending");
+      }
+    }
+  }, []);
+
+  const parseHostDetails = (desc?: string) => {
+    if (!desc) return null;
+    const ownerMatch = desc.match(/Owner:\s*([^(]+)\s*\(([^,]+),\s*([^)]+)\)/i);
+    const locationMatch = desc.match(/Location:\s*([^\n]+)/i);
+    const driverMatch = desc.match(/Driver:\s*([^(]+)\s*\(Phone:\s*([^,]+),\s*License:\s*([^)]+)\)/i);
+    const smokingMatch = desc.match(/Smoking Allowed:\s*([^\n]+)/i);
+    const refMatch = desc.match(/Host Vehicle Registration \((HOST-[A-Z0-9]+)\)/i);
+
+    return {
+      referenceId: refMatch ? refMatch[1] : null,
+      ownerName: ownerMatch ? ownerMatch[1].trim() : null,
+      ownerPhone: ownerMatch ? ownerMatch[2].trim() : null,
+      ownerEmail: ownerMatch ? ownerMatch[3].trim() : null,
+      location: locationMatch ? locationMatch[1].trim() : null,
+      driverName: driverMatch ? driverMatch[1].trim() : null,
+      driverPhone: driverMatch ? driverMatch[2].trim() : null,
+      licenseNumber: driverMatch ? driverMatch[3].trim() : null,
+      smokingAllowed: smokingMatch ? smokingMatch[1].trim() : null,
+    };
+  };
+
+  const openReviewModal = (vehicle: Vehicle) => {
+    setReviewingVehicle(vehicle);
+    setReviewDailyRate(vehicle.daily_rate);
+    setReviewCategory(vehicle.category);
+    setPreviewImage(null);
+  };
+
+  const handleApproveVehicle = async () => {
+    if (!reviewingVehicle) return;
+    setIsReviewSubmitting(true);
+    try {
+      const updated = await approveHostVehicle(
+        reviewingVehicle.id,
+        {
+          daily_rate: reviewDailyRate || reviewingVehicle.daily_rate,
+          category: reviewCategory || reviewingVehicle.category,
+        },
+        token || undefined,
+        tenantHost
+      );
+      setVehicles((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.all });
+      toast.success(`Vehicle "${updated.brand} ${updated.model}" approved!`, {
+        description: `License Plate: ${updated.license_plate} is now LIVE in your fleet and available for client booking.`,
+      });
+      setReviewingVehicle(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to approve vehicle";
+      toast.error("Approval failed", { description: msg });
+    } finally {
+      setIsReviewSubmitting(false);
+    }
+  };
+
+  const handleRejectVehicle = async () => {
+    if (!reviewingVehicle) return;
+    const reason = prompt(
+      "Enter reason for declining this vehicle host application (optional):",
+      "Documentation incomplete or vehicle does not meet fleet criteria."
+    );
+    if (reason === null) return;
+
+    setIsReviewSubmitting(true);
+    try {
+      const updated = await rejectHostVehicle(
+        reviewingVehicle.id,
+        reason || undefined,
+        token || undefined,
+        tenantHost
+      );
+      setVehicles((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
+      queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.all });
+      toast.info(`Vehicle "${updated.brand} ${updated.model}" host submission declined.`, {
+        description: `Status changed to Inactive.`,
+      });
+      setReviewingVehicle(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to reject vehicle";
+      toast.error("Action failed", { description: msg });
+    } finally {
+      setIsReviewSubmitting(false);
+    }
+  };
 
   // Edit / Delete Vehicle State
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
@@ -261,12 +395,20 @@ export default function FleetManagementPage() {
 
   const loadFleet = useCallback(async () => {
     setIsLoading(true);
+    let queryTenant: string | null = null;
+    if (typeof window !== "undefined") {
+      queryTenant = new URLSearchParams(window.location.search).get("tenant");
+    }
+    const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+    const cleanDomain = activeTenant.replace(/:\d+$/, "");
+    const tenantHost = `${cleanDomain}:3000`;
+
     try {
       const [fleetData, branchData, categoryData, transmissionData] = await Promise.all([
-        getVehicles(),
-        fetchBranches().catch(() => []),
-        fetchCategories().catch(() => []),
-        fetchTransmissions().catch(() => []),
+        getVehicles(undefined, token || undefined, tenantHost),
+        fetchBranches(token || undefined, tenantHost).catch(() => []),
+        fetchCategories(tenantHost).catch(() => []),
+        fetchTransmissions(tenantHost).catch(() => []),
       ]);
       setVehicles(fleetData);
       setBranches(branchData);
@@ -283,7 +425,7 @@ export default function FleetManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [token, tenantDomain]);
 
   useEffect(() => {
     loadFleet();
@@ -292,7 +434,7 @@ export default function FleetManagementPage() {
   const handleStatusChange = async (vehicleId: string, newStatus: VehicleStatus) => {
     setUpdatingId(vehicleId);
     try {
-      await updateVehicleStatus(vehicleId, newStatus, token || undefined);
+      await updateVehicleStatus(vehicleId, newStatus, token || undefined, tenantHost);
       setVehicles((prev) =>
         prev.map((v) => (v.id === vehicleId ? { ...v, status: newStatus } : v))
       );
@@ -341,7 +483,7 @@ export default function FleetManagementPage() {
         setVehicles((prev) => prev.map((v) => (v.id === updated.id ? updated : v)));
         queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.all });
         toast.success(`Vehicle ${updated.brand} ${updated.model} updated!`, {
-          description: `License Plate: ${updated.license_plate} · Daily Rate: $${updated.daily_rate}/day`,
+          description: `License Plate: ${updated.license_plate} · Daily Rate: ${currencySymbol} ${updated.daily_rate}/day`,
         });
         closeVehicleModal();
         return;
@@ -351,7 +493,7 @@ export default function FleetManagementPage() {
       setVehicles((prev) => [created, ...prev]);
       queryClient.invalidateQueries({ queryKey: queryKeys.vehicles.all });
       toast.success(`Vehicle ${created.brand} ${created.model} added to fleet!`, {
-        description: `License Plate: ${created.license_plate} · Daily Rate: $${created.daily_rate}/day`,
+        description: `License Plate: ${created.license_plate} · Daily Rate: ${currencySymbol} ${created.daily_rate}/day`,
       });
       setShowAddModal(false);
       // Reset form with a fresh random license plate
@@ -413,13 +555,24 @@ export default function FleetManagementPage() {
     }
   };
 
-  const filteredVehicles = vehicles.filter((v) => {
+  const pendingVehicles = vehicles.filter(
+    (v) => v.status === "pending_approval" || v.is_verified === false
+  );
+  const activeFleetVehicles = vehicles.filter(
+    (v) => v.status !== "pending_approval" && v.is_verified !== false
+  );
+
+  const filteredVehicles = (activeViewTab === "pending" ? pendingVehicles : activeFleetVehicles).filter((v) => {
     const matchesSearch =
       v.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
       v.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      v.license_plate.toLowerCase().includes(searchQuery.toLowerCase());
+      v.license_plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.description ? v.description.toLowerCase().includes(searchQuery.toLowerCase()) : false);
     const matchesCategory = categoryFilter === "all" || v.category === categoryFilter;
-    const matchesStatus = statusFilter === "all" || v.status === statusFilter;
+    const matchesStatus =
+      activeViewTab === "pending"
+        ? statusFilter === "all" || statusFilter === "pending_approval" || v.status === statusFilter
+        : statusFilter === "all" || v.status === statusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
@@ -431,11 +584,11 @@ export default function FleetManagementPage() {
           <h1 className="text-2xl font-bold tracking-tight dark:text-white text-slate-900 md:text-3xl flex items-center gap-2.5">
             <span>Fleet Inventory</span>
             <span className="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full dark:bg-white/[0.05] bg-slate-100 border dark:border-white/[0.08] border-slate-200 dark:text-zinc-400 text-slate-600">
-              {vehicles.length} Vehicles
+              {vehicles.length} Total Vehicles
             </span>
           </h1>
           <p className="mt-1 text-sm dark:text-zinc-400 text-slate-500">
-            Control vehicle availability, telemetry, and service scheduling across depot branches.
+            Control vehicle availability, telemetry, and review host applications across depot branches.
           </p>
         </div>
 
@@ -470,6 +623,76 @@ export default function FleetManagementPage() {
           </Button>
         </div>
       </div>
+
+      {/* View Tabs */}
+      <div className="flex items-center gap-2 border-b dark:border-white/[0.08] border-slate-200 pb-3">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveViewTab("all");
+            setStatusFilter("all");
+          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+            activeViewTab === "all"
+              ? "bg-[#D4AF37] text-black shadow-md shadow-amber-500/20"
+              : "dark:text-zinc-400 text-slate-600 dark:hover:bg-white/[0.05] hover:bg-slate-100"
+          }`}
+        >
+          <Car className="h-4 w-4" />
+          <span>Active Fleet ({activeFleetVehicles.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveViewTab("pending");
+            setStatusFilter("all");
+          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all relative ${
+            activeViewTab === "pending"
+              ? "bg-amber-500 text-black shadow-md shadow-amber-500/20"
+              : "dark:text-zinc-400 text-slate-600 dark:hover:bg-white/[0.05] hover:bg-slate-100"
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          <span>Host Applications ({pendingVehicles.length})</span>
+          {pendingVehicles.length > 0 && (
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+            </span>
+          )}
+        </button>
+      </div>
+
+      {/* Pending Applications Alert Banner */}
+      {pendingVehicles.length > 0 && activeViewTab === "all" && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border dark:border-amber-500/30 border-amber-300 dark:bg-amber-500/10 bg-amber-50 p-4 dark:text-amber-200 text-amber-950">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg dark:bg-amber-500/20 bg-amber-100 text-amber-600 dark:text-amber-400 shrink-0 border dark:border-amber-500/30 border-amber-200">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm dark:text-white text-slate-900">
+                {pendingVehicles.length} Host Vehicle Application{pendingVehicles.length > 1 ? "s" : ""} Awaiting Review &amp; Approval
+              </p>
+              <p className="text-xs dark:text-amber-300/80 text-amber-900/80 mt-0.5">
+                Vehicle owners registered vehicles from your public storefront. Review their registration docs, bluebook, driver license, and approve them to enter live fleet.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => {
+              setActiveViewTab("pending");
+              setStatusFilter("all");
+            }}
+            className="bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs shrink-0"
+          >
+            Review Submissions ({pendingVehicles.length})
+          </Button>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white p-4 shadow-2xs">
@@ -515,6 +738,7 @@ export default function FleetManagementPage() {
               className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-sm dark:text-white text-slate-900"
             >
               <option value="all">All Statuses</option>
+              <option value="pending_approval">Pending Host Review</option>
               <option value="available">Available</option>
               <option value="rented">Rented</option>
               <option value="reserved">Reserved</option>
@@ -622,7 +846,7 @@ export default function FleetManagementPage() {
 
                     {/* Rate */}
                     <TableCell className="font-mono font-medium dark:text-white text-slate-900">
-                      ${vehicle.daily_rate}
+                      {currencySymbol} {Number(vehicle.daily_rate).toLocaleString()}
                       <span className="text-[11px] dark:text-zinc-500 text-slate-400 font-normal"> /day</span>
                     </TableCell>
 
@@ -647,6 +871,7 @@ export default function FleetManagementPage() {
                           }
                           className="text-[11px] font-mono dark:bg-black/60 bg-white border dark:border-white/[0.08] border-slate-200 rounded px-2 py-1 dark:text-zinc-300 text-slate-700 focus:outline-none cursor-pointer hover:border-slate-300 dark:hover:border-white/20 transition-colors"
                         >
+                          <option value="pending_approval">Pending Review</option>
                           <option value="available">Available</option>
                           <option value="reserved">Reserved</option>
                           <option value="rented">Rented</option>
@@ -659,6 +884,16 @@ export default function FleetManagementPage() {
                     {/* Row Actions */}
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {(vehicle.status === "pending_approval" || vehicle.is_verified === false) && (
+                          <Button
+                            size="sm"
+                            onClick={() => openReviewModal(vehicle)}
+                            className="h-7 px-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs flex items-center gap-1 shadow-xs"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>Review</span>
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -959,7 +1194,7 @@ export default function FleetManagementPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    Daily Rate ($) *
+                    Daily Rate ({currencySymbol}) *
                   </label>
                   <Input
                     required
@@ -973,7 +1208,7 @@ export default function FleetManagementPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-zinc-300 mb-1">
-                    Security Deposit ($)
+                    Security Deposit ({currencySymbol})
                   </label>
                   <Input
                     type="number"
@@ -1224,6 +1459,344 @@ export default function FleetManagementPage() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Host Vehicle Review & Approval Modal */}
+      {reviewingVehicle && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-3xl rounded-2xl dark:bg-zinc-950 bg-white border dark:border-white/[0.12] border-slate-200 p-6 space-y-6 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b dark:border-white/[0.08] border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold dark:text-white text-slate-900 font-serif">
+                      Review Host Vehicle Application
+                    </h3>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-semibold">
+                      Awaiting Owner Approval
+                    </span>
+                  </div>
+                  <p className="text-xs dark:text-zinc-400 text-slate-500 mt-0.5">
+                    {reviewingVehicle.brand} {reviewingVehicle.model} ({reviewingVehicle.year}) &middot; License Plate: <span className="font-mono text-amber-400 font-semibold">{reviewingVehicle.license_plate}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewingVehicle(null)}
+                className="text-zinc-400 hover:text-white rounded-lg p-1 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Parsed Details Body */}
+            {(() => {
+              const hostMeta = parseHostDetails(reviewingVehicle.description);
+              const allImages = Array.isArray(reviewingVehicle.images) ? reviewingVehicle.images : [];
+
+              return (
+                <div className="space-y-6">
+                  {/* Host Owner & Driver Info Card */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Owner Card */}
+                    <div className="rounded-xl border dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.02] bg-slate-50 p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-400">
+                        <User className="h-4 w-4" />
+                        <span>Vehicle Owner Details (गाडी धनी)</span>
+                      </div>
+                      <div className="text-xs space-y-1.5 dark:text-zinc-300 text-slate-700">
+                        <div className="flex justify-between">
+                          <span className="dark:text-zinc-500 text-slate-500">Owner Name:</span>
+                          <span className="font-semibold dark:text-white text-slate-900">{hostMeta?.ownerName || "Registered Partner"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="dark:text-zinc-500 text-slate-500">Phone:</span>
+                          <span className="font-mono dark:text-white text-slate-900">{hostMeta?.ownerPhone || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="dark:text-zinc-500 text-slate-500">Email:</span>
+                          <span className="font-mono dark:text-white text-slate-900">{hostMeta?.ownerEmail || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="dark:text-zinc-500 text-slate-500">Location:</span>
+                          <span className="dark:text-white text-slate-900">{hostMeta?.location || "Kathmandu"}</span>
+                        </div>
+                        {hostMeta?.referenceId && (
+                          <div className="flex justify-between pt-1 border-t dark:border-white/[0.05] border-slate-200">
+                            <span className="dark:text-zinc-500 text-slate-500">Reference ID:</span>
+                            <span className="font-mono font-bold text-amber-400">{hostMeta.referenceId}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Driver Card */}
+                    <div className="rounded-xl border dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.02] bg-slate-50 p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                        <Car className="h-4 w-4" />
+                        <span>Assigned Chauffeur / Driver</span>
+                      </div>
+                      <div className="text-xs space-y-1.5 dark:text-zinc-300 text-slate-700">
+                        <div className="flex justify-between">
+                          <span className="dark:text-zinc-500 text-slate-500">Driver Name:</span>
+                          <span className="font-semibold dark:text-white text-slate-900">{hostMeta?.driverName || reviewingVehicle.driver_name || "Self-Driven"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="dark:text-zinc-500 text-slate-500">Driver Phone:</span>
+                          <span className="font-mono dark:text-white text-slate-900">{hostMeta?.driverPhone || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="dark:text-zinc-500 text-slate-500">Driving License:</span>
+                          <span className="font-mono dark:text-white text-slate-900">{hostMeta?.licenseNumber || "Verified"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="dark:text-zinc-500 text-slate-500">Smoking Allowed:</span>
+                          <span className="dark:text-white text-slate-900">{hostMeta?.smokingAllowed || "No"}</span>
+                        </div>
+                        <div className="flex justify-between pt-1 border-t dark:border-white/[0.05] border-slate-200">
+                          <span className="dark:text-zinc-500 text-slate-500">Driver Included:</span>
+                          <span className="font-semibold text-emerald-400">Yes (With Vehicle)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vehicle Technical Specifications */}
+                  <div className="rounded-xl border dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.02] bg-slate-50 p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider dark:text-zinc-400 text-slate-500">
+                      <Gauge className="h-4 w-4 text-primary" />
+                      <span>Vehicle Specifications</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                      <div>
+                        <span className="dark:text-zinc-500 text-slate-500 block text-[11px]">Make &amp; Model</span>
+                        <span className="font-medium dark:text-white text-slate-900">{reviewingVehicle.brand} {reviewingVehicle.model}</span>
+                      </div>
+                      <div>
+                        <span className="dark:text-zinc-500 text-slate-500 block text-[11px]">Year</span>
+                        <span className="font-mono dark:text-white text-slate-900">{reviewingVehicle.year}</span>
+                      </div>
+                      <div>
+                        <span className="dark:text-zinc-500 text-slate-500 block text-[11px]">Transmission</span>
+                        <span className="capitalize dark:text-white text-slate-900">{reviewingVehicle.transmission}</span>
+                      </div>
+                      <div>
+                        <span className="dark:text-zinc-500 text-slate-500 block text-[11px]">Fuel Type</span>
+                        <span className="capitalize dark:text-white text-slate-900">{reviewingVehicle.fuel_type}</span>
+                      </div>
+                      <div>
+                        <span className="dark:text-zinc-500 text-slate-500 block text-[11px]">Seats / Doors</span>
+                        <span className="dark:text-white text-slate-900">{reviewingVehicle.seats} Seats &middot; {reviewingVehicle.doors} Doors</span>
+                      </div>
+                      <div>
+                        <span className="dark:text-zinc-500 text-slate-500 block text-[11px]">Color</span>
+                        <span className="dark:text-white text-slate-900">{reviewingVehicle.color}</span>
+                      </div>
+                      <div>
+                        <span className="dark:text-zinc-500 text-slate-500 block text-[11px]">Depot Branch</span>
+                        <span className="dark:text-white text-slate-900">{reviewingVehicle.branch_name || "Main Branch"}</span>
+                      </div>
+                      <div>
+                        <span className="dark:text-zinc-500 text-slate-500 block text-[11px]">Review Status</span>
+                        <span className="text-amber-400 font-semibold uppercase text-[10px]">Awaiting Approval</span>
+                      </div>
+                    </div>
+
+                    {/* Features Badges */}
+                    {Array.isArray(reviewingVehicle.features) && reviewingVehicle.features.length > 0 && (
+                      <div className="pt-2 border-t dark:border-white/[0.05] border-slate-200 flex flex-wrap gap-1.5 items-center">
+                        <span className="text-[11px] dark:text-zinc-500 text-slate-500 mr-1">Features:</span>
+                        {reviewingVehicle.features.map((feat, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] px-2 py-0.5 rounded-md dark:bg-white/[0.05] bg-slate-100 dark:text-zinc-300 text-slate-700 border dark:border-white/[0.08] border-slate-200"
+                          >
+                            {feat}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Uploaded Documents & Media Gallery */}
+                  <div className="rounded-xl border dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.02] bg-slate-50 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider dark:text-zinc-400 text-slate-500">
+                        <FileText className="h-4 w-4 text-emerald-400" />
+                        <span>Uploaded Documents &amp; Vehicle Media ({allImages.length} Files)</span>
+                      </div>
+                      <span className="text-[11px] dark:text-zinc-500 text-slate-500">Click any image to enlarge</span>
+                    </div>
+
+                    {allImages.length === 0 ? (
+                      <p className="text-xs dark:text-zinc-500 text-slate-400 py-3 text-center">No images uploaded.</p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {allImages.map((imgItem, idx) => {
+                          const imgUrl = typeof imgItem === "string" ? imgItem : imgItem.url;
+                          const isBluebook = idx === 4 || idx === 5 || imgUrl.includes("bluebook");
+                          const isInsurance = idx === 6 || imgUrl.includes("insurance");
+                          const label = isBluebook
+                            ? `Bluebook Doc #${idx - 3}`
+                            : isInsurance
+                            ? "Insurance Certificate"
+                            : `Vehicle Angle #${idx + 1}`;
+
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => setPreviewImage(imgUrl)}
+                              className="group relative cursor-pointer overflow-hidden rounded-xl border dark:border-white/[0.08] border-slate-200 bg-black/40 hover:border-primary/50 transition-all aspect-video flex flex-col justify-end p-2"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={label}
+                                className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+                              <div className="relative z-10 flex items-center justify-between">
+                                <span className="text-[10px] font-medium text-white truncate max-w-[120px] drop-shadow-sm">
+                                  {label}
+                                </span>
+                                <Eye className="h-3.5 w-3.5 text-zinc-300 group-hover:text-primary transition-colors shrink-0" />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Approval Controls: Rate and Category */}
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-primary">
+                      <Sparkles className="h-4 w-4" />
+                      <span>Fleet Operator Pricing &amp; Category Settings</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs dark:text-zinc-300 text-slate-700 block mb-1">
+                          Approved Daily Rental Base Rate ({currencySymbol} / day) *
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={reviewDailyRate}
+                          onChange={(e) => setReviewDailyRate(e.target.value)}
+                          className="dark:bg-black/60 bg-white dark:border-white/[0.1] border-slate-200 dark:text-white text-slate-900 font-mono"
+                          placeholder="e.g. 75.00"
+                        />
+                        <p className="text-[11px] dark:text-zinc-500 text-slate-500 mt-1">
+                          You can adjust the rental rate charged to clients on your storefront.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="text-xs dark:text-zinc-300 text-slate-700 block mb-1">
+                          Fleet Category Assignment
+                        </label>
+                        <Select
+                          value={reviewCategory}
+                          onChange={(e) => setReviewCategory(e.target.value)}
+                          className="dark:bg-black/60 bg-white dark:border-white/[0.1] border-slate-200 dark:text-white text-slate-900"
+                        >
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.slug}>
+                              {c.name}
+                            </option>
+                          ))}
+                          {categories.length === 0 && (
+                            <>
+                              <option value="sedan">Executive Sedan</option>
+                              <option value="suv">Premium SUV</option>
+                              <option value="luxury">Luxury Flagship</option>
+                              <option value="sports">Exotic Sports</option>
+                              <option value="van">Van / Minivan</option>
+                              <option value="electric">Electric / EV</option>
+                            </>
+                          )}
+                        </Select>
+                        <p className="text-[11px] dark:text-zinc-500 text-slate-500 mt-1">
+                          Category will determine storefront filtering and search groupings.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="pt-4 border-t dark:border-white/[0.08] border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setReviewingVehicle(null)}
+                      className="w-full sm:w-auto text-xs dark:border-white/[0.1] border-slate-300 dark:text-zinc-400 text-slate-600"
+                    >
+                      Close Window
+                    </Button>
+
+                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        disabled={isReviewSubmitting}
+                        onClick={handleRejectVehicle}
+                        className="flex-1 sm:flex-initial text-xs bg-rose-600/90 hover:bg-rose-700 text-white"
+                      >
+                        {isReviewSubmitting ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                        ) : (
+                          <X className="w-3.5 h-3.5 mr-1.5" />
+                        )}
+                        Reject Submission
+                      </Button>
+
+                      <Button
+                        type="button"
+                        disabled={isReviewSubmitting}
+                        onClick={handleApproveVehicle}
+                        className="flex-1 sm:flex-initial text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold shadow-lg shadow-emerald-600/20"
+                      >
+                        {isReviewSubmitting ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 mr-1.5" />
+                        )}
+                        Approve &amp; Activate to Fleet
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Full-size Image Lightbox Preview */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-pointer"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[85vh] w-full flex flex-col items-center">
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 right-0 text-white text-xs font-mono bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded-md"
+            >
+              Close (ESC)
+            </button>
+            <img
+              src={previewImage}
+              alt="Document Preview"
+              className="max-h-[80vh] w-auto max-w-full rounded-xl object-contain shadow-2xl border border-white/20"
+            />
           </div>
         </div>
       )}

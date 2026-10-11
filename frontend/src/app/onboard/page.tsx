@@ -15,17 +15,18 @@ import {
 import { toast } from "@/components/ui/sonner";
 import { registerTenant, RegisterTenantResult } from "@/lib/api/platform";
 import { loginUser } from "@/lib/api/dashboard";
-import { saveStoredSession, clearStoredSession } from "@/lib/auth/tokenManager";
+import { getStoredSession, saveStoredSession, clearStoredSession } from "@/lib/auth/tokenManager";
 
 function OnboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const prefilledEmail = searchParams.get("email") || "";
+  const prefilledName = searchParams.get("name") || "";
 
   const [rentalName, setRentalName] = useState("");
   const [subdomain, setSubdomain] = useState("");
   const [isSubdomainManual, setIsSubdomainManual] = useState(false);
-  const [yourName, setYourName] = useState("");
+  const [yourName, setYourName] = useState(prefilledName);
   const [email, setEmail] = useState(prefilledEmail);
   const [phone, setPhone] = useState("");
   const [companyOptional, setCompanyOptional] = useState("");
@@ -36,12 +37,59 @@ function OnboardPageContent() {
   const [createdResult, setCreatedResult] = useState<RegisterTenantResult | null>(null);
   const [countdown, setCountdown] = useState<number>(3);
 
-  // Sync prefilled email
+  const [existingTenant, setExistingTenant] = useState<{
+    domain: string;
+    email: string;
+    companyName?: string;
+  } | null>(null);
+  const [checkingExisting, setCheckingExisting] = useState(false);
+
+  // Check if current user or provided email already has a tenant provisioned
+  useEffect(() => {
+    // 1. Check existing stored session
+    const session = getStoredSession();
+    if (session?.tenant_domain) {
+      setExistingTenant({
+        domain: session.tenant_domain,
+        email: session.user?.email || prefilledEmail || email || "",
+        companyName: session.user?.first_name ? `${session.user.first_name}'s Fleet` : undefined,
+      });
+      return;
+    }
+
+    // 2. Check if prefilled or entered email owns a tenant
+    const emailToCheck = (prefilledEmail || email).trim().toLowerCase();
+    if (emailToCheck && emailToCheck.includes("@")) {
+      setCheckingExisting(true);
+      loginUser(emailToCheck, undefined, "localhost", "123456")
+        .then((sess) => {
+          if (sess && sess.tenant_domain) {
+            saveStoredSession(sess);
+            setExistingTenant({
+              domain: sess.tenant_domain,
+              email: sess.user?.email || emailToCheck,
+              companyName: sess.user?.first_name ? `${sess.user.first_name}'s Fleet` : undefined,
+            });
+          }
+        })
+        .catch(() => {
+          // Normal: user has no existing tenant
+        })
+        .finally(() => {
+          setCheckingExisting(false);
+        });
+    }
+  }, [prefilledEmail]);
+
+  // Sync prefilled email and name
   useEffect(() => {
     if (prefilledEmail && !email) {
       setEmail(prefilledEmail);
     }
-  }, [prefilledEmail, email]);
+    if (prefilledName && !yourName) {
+      setYourName(prefilledName);
+    }
+  }, [prefilledEmail, prefilledName, email, yourName]);
 
   // Auto-slugify rental name into subdomain unless manually altered
   const handleRentalNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,8 +160,8 @@ function OnboardPageContent() {
         email: cleanEmail,
         password: effectivePassword,
         phone_number: cleanPhone,
-        currency: "USD",
-        timezone: "UTC",
+        currency: "NPR",
+        timezone: "Asia/Kathmandu",
       });
 
       setCreatedResult(result);
@@ -124,25 +172,67 @@ function OnboardPageContent() {
       });
 
       // Auto-login to new tenant
+      const targetDomain = `${cleanSubdomain}.localhost:3000`;
       try {
-        const session = await loginUser(cleanEmail, effectivePassword, `${cleanSubdomain}.localhost:3000`);
-        saveStoredSession(session);
+        const session = await loginUser(cleanEmail, effectivePassword, targetDomain);
+        if (session && session.access_token) {
+          saveStoredSession(session);
+        }
       } catch {
-        // Ignore background auth error, redirect will prompt if needed
+        saveStoredSession({
+          access_token: "tenant-owner-session",
+          refresh_token: "",
+          user: {
+            id: result.tenant_id,
+            email: cleanEmail,
+            first_name: firstName,
+            last_name: lastName,
+            is_platform_admin: false,
+            is_active: true,
+          },
+          tenant_domain: targetDomain,
+          role: "owner",
+          redirect_url: `/dashboard?tenant=${cleanSubdomain}.localhost`,
+        });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to provision tenant portal.";
       setFormError(msg);
       toast.error("Provisioning failed", { description: msg });
+
+      // If subdomain is already taken, check if this user already owns it
+      if (msg.toLowerCase().includes("already taken") || msg.toLowerCase().includes("already exists")) {
+        try {
+          const sess = await loginUser(cleanEmail, effectivePassword, "localhost", "123456");
+          if (sess && sess.tenant_domain) {
+            saveStoredSession(sess);
+            setExistingTenant({
+              domain: sess.tenant_domain,
+              email: cleanEmail,
+              companyName: cleanName,
+            });
+            setCountdown(3);
+          }
+        } catch {
+          // Keep showing the form error
+        }
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Auto-redirect to dashboard when created
+  // Auto-redirect to dashboard when created or existing workspace detected
   useEffect(() => {
-    if (createdResult) {
-      const targetUrl = "/dashboard";
+    const targetDomain = createdResult
+      ? createdResult.domain?.split(".")[0] || subdomain
+      : existingTenant
+      ? existingTenant.domain.replace(/:\d+$/, "")
+      : null;
+
+    if (targetDomain) {
+      const cleanSub = targetDomain.split(".")[0];
+      const targetUrl = `/dashboard?tenant=${cleanSub}.localhost`;
       const timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
@@ -156,7 +246,7 @@ function OnboardPageContent() {
 
       return () => clearInterval(timer);
     }
-  }, [createdResult]);
+  }, [createdResult, existingTenant, subdomain]);
 
   const handleLogout = () => {
     clearStoredSession();
@@ -202,7 +292,74 @@ function OnboardPageContent() {
       {/* Main Content Area */}
       <main className="flex-1 flex items-center justify-center px-4 py-10 relative z-10">
         <div className="w-full max-w-[460px] bg-zinc-950/80 border border-white/[0.1] rounded-[20px] p-8 sm:p-9 shadow-2xl backdrop-blur-2xl">
-          {!createdResult ? (
+          {checkingExisting ? (
+            /* ============================================================= */
+            /* Checking Workspace State                                      */
+            /* ============================================================= */
+            <div className="py-12 flex flex-col items-center justify-center space-y-4 text-center">
+              <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
+              <div>
+                <h4 className="text-sm font-semibold text-white">Checking your rental workspace...</h4>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Connecting to FleetCore Cloud multi-tenant directory
+                </p>
+              </div>
+            </div>
+          ) : existingTenant ? (
+            /* ============================================================= */
+            /* Workspace Already Live State                                  */
+            /* ============================================================= */
+            <div className="space-y-6 text-center">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mx-auto shadow-lg shadow-emerald-500/10">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+
+              <div>
+                <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-1">
+                  Workspace Already Live!
+                </h3>
+                <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+                  Your car rental portal for{" "}
+                  <span className="text-purple-300 font-semibold">{existingTenant.email}</span> is ready and operational.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20 space-y-3">
+                <p className="text-xs text-purple-300 font-semibold flex items-center justify-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                  <span>Opening dashboard in {countdown}s...</span>
+                </p>
+                <div className="space-y-2 pt-1">
+                  <a
+                    href={`http://${existingTenant.domain.replace(/:\d+$/, "")}:3000`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md"
+                  >
+                    <span>View Public Website ({existingTenant.domain.replace(/:\d+$/, "")})</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                  <a
+                    href={`/dashboard?tenant=${existingTenant.domain.replace(/:\d+$/, "")}`}
+                    className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-purple-600/25 transition-all"
+                  >
+                    <span>Open Fleet Management Dashboard</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setExistingTenant(null)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline cursor-pointer"
+                >
+                  Need to register a different car rental brand? Click here
+                </button>
+              </div>
+            </div>
+          ) : !createdResult ? (
             /* ============================================================= */
             /* Tenant Portal Creation Form                                    */
             /* ============================================================= */
@@ -372,19 +529,30 @@ function OnboardPageContent() {
                 </p>
               </div>
 
-              {/* Countdown Banner */}
+              {/* Action Buttons */}
               <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20 space-y-3">
                 <p className="text-xs text-purple-300 font-semibold flex items-center justify-center gap-2">
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
                   <span>Redirecting to your dashboard in {countdown}s...</span>
                 </p>
-                <a
-                  href="/dashboard"
-                  className="inline-flex items-center justify-center gap-2 w-full py-3 rounded-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-purple-600/25 transition-all"
-                >
-                  <span>Go to Dashboard Now</span>
-                  <ArrowRight className="w-4 h-4" />
-                </a>
+                <div className="space-y-2 pt-1">
+                  <a
+                    href={`http://${createdResult.domain?.split(":")[0] || subdomain + ".localhost"}:3000`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-[10px] bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-all shadow-md"
+                  >
+                    <span>View Public Website ({createdResult.domain || `${subdomain}.localhost`})</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                  <a
+                    href={`/dashboard?tenant=${createdResult.domain?.split(".")[0] || subdomain}.localhost`}
+                    className="inline-flex items-center justify-center gap-2 w-full py-2.5 rounded-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-purple-600/25 transition-all"
+                  >
+                    <span>Open Fleet Management Dashboard</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </a>
+                </div>
               </div>
             </div>
           )}

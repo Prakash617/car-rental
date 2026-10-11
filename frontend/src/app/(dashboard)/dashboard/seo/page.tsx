@@ -18,7 +18,9 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { getManageableWebsiteConfig, updateTenantThemeConfig } from "@/lib/api/dashboard";
 
 export default function SEOManagerPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
+  const [websiteTitle, setWebsiteTitle] = useState("");
+  const [faviconUrl, setFaviconUrl] = useState("");
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [seoKeywords, setSeoKeywords] = useState("");
@@ -30,11 +32,21 @@ export default function SEOManagerPage() {
     null
   );
 
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
+
   useEffect(() => {
     async function loadConfig() {
       try {
-        const config = await getManageableWebsiteConfig(token || undefined);
+        const config = await getManageableWebsiteConfig(token || undefined, tenantHost);
         if (config) {
+          setWebsiteTitle(config.website_title || "");
+          setFaviconUrl(config.favicon_url || "");
           setSeoTitle(config.seo_meta_title || "");
           setSeoDescription(config.seo_meta_description || "");
           setSeoKeywords(config.seo_keywords || "");
@@ -47,7 +59,7 @@ export default function SEOManagerPage() {
       }
     }
     loadConfig();
-  }, [token]);
+  }, [token, tenantHost]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +68,8 @@ export default function SEOManagerPage() {
     try {
       await updateTenantThemeConfig(
         {
+          website_title: websiteTitle || seoTitle,
+          favicon_url: faviconUrl,
           seo_meta_title: seoTitle,
           seo_meta_description: seoDescription,
           seo_keywords: seoKeywords,
@@ -63,7 +77,8 @@ export default function SEOManagerPage() {
           hero_title: heroTitle,
           hero_subtitle: heroSubtitle,
         },
-        token || undefined
+        token || undefined,
+        tenantHost
       );
       setFeedback({ type: "success", message: "SEO & content settings saved successfully!" });
       setTimeout(() => setFeedback(null), 4000);

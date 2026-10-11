@@ -1,4 +1,5 @@
 import React, { Suspense } from "react";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { resolveTenant } from "@/lib/tenant/resolver";
 import { getRequestTenantHost } from "@/lib/tenant/request";
@@ -6,6 +7,44 @@ import { getThemeDefinition, getThemeHeadingFont } from "@/lib/themes/registry";
 import { Navbar } from "@/components/navigation/Navbar";
 import { BrandingProvider } from "@/lib/context/branding";
 import { ThemePreviewBanner } from "@/components/themes/ThemePreviewBanner";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const tenantHost = await getRequestTenantHost();
+  const { branding } = await resolveTenant(tenantHost);
+
+  const title =
+    branding.website_title ||
+    branding.seo_meta_title ||
+    (branding.name ? `${branding.name} | Luxury & Standard Car Rental` : "Apex Rentals");
+  const description =
+    branding.seo_meta_description ||
+    branding.hero_subtitle ||
+    "Enterprise multi-tenant automotive hire platform with dynamic theme engine and real-time fleet availability.";
+
+  const icons: Metadata["icons"] = [];
+  if (branding.favicon_url) {
+    icons.push({ rel: "icon", url: branding.favicon_url });
+    icons.push({ rel: "shortcut icon", url: branding.favicon_url });
+    icons.push({ rel: "apple-touch-icon", url: branding.favicon_url });
+  }
+
+  return {
+    title: {
+      default: title,
+      template: `%s | ${branding.name || title}`,
+    },
+    description,
+    keywords: branding.seo_keywords
+      ? branding.seo_keywords.split(",").map((k) => k.trim())
+      : undefined,
+    ...(icons.length > 0 ? { icons } : {}),
+    openGraph: {
+      title,
+      description,
+      images: branding.og_image_url ? [{ url: branding.og_image_url }] : undefined,
+    },
+  };
+}
 
 export default async function StorefrontLayout({
   children,

@@ -88,6 +88,14 @@ export default function PagesManagerPage() {
     message: string;
   } | null>(null);
 
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
+
   const showFeedback = (type: "success" | "error", message: string) => {
     setGlobalFeedback({ type, message });
     setTimeout(() => setGlobalFeedback(null), 4000);
@@ -96,7 +104,7 @@ export default function PagesManagerPage() {
   const loadPages = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getAllCustomPages(token || undefined);
+      const data = await getAllCustomPages(token || undefined, tenantHost);
       setPages(data.map((p) => pageToFormState(p)));
     } catch (err) {
       console.error("Failed to load pages:", err);
@@ -104,7 +112,7 @@ export default function PagesManagerPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, tenantHost]);
 
   useEffect(() => {
     loadPages();
@@ -163,13 +171,13 @@ export default function PagesManagerPage() {
 
     try {
       if (page.isNew) {
-        const created = await createCustomPage(payload, token || undefined);
+        const created = await createCustomPage(payload, token || undefined, tenantHost);
         setPages((prev) =>
           prev.map((p, i) => (i === idx ? { ...pageToFormState(created), isExpanded: false } : p))
         );
         showFeedback("success", `Page "${created.title}" created successfully`);
       } else {
-        const updated = await updateCustomPage(page.slug, payload, token || undefined);
+        const updated = await updateCustomPage(page.slug, payload, token || undefined, tenantHost);
         setPages((prev) =>
           prev.map((p, i) =>
             i === idx ? { ...pageToFormState(updated), isExpanded: false } : p
@@ -193,7 +201,7 @@ export default function PagesManagerPage() {
     if (!confirm(`Delete page "${page.title}"? This cannot be undone.`)) return;
 
     try {
-      await deleteCustomPage(page.slug, token || undefined);
+      await deleteCustomPage(page.slug, token || undefined, tenantHost);
       setPages((prev) => prev.filter((_, i) => i !== idx));
       showFeedback("success", "Page deleted");
     } catch (err: unknown) {
@@ -212,7 +220,7 @@ export default function PagesManagerPage() {
     updateField(idx, "is_published", newState);
     updateField(idx, "_is_published", newState);
     try {
-      await updateCustomPage(page.slug, { is_published: newState }, token || undefined);
+      await updateCustomPage(page.slug, { is_published: newState }, token || undefined, tenantHost);
     } catch {
       updateField(idx, "is_published", !newState);
       updateField(idx, "_is_published", !newState);

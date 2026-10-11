@@ -175,9 +175,36 @@ export async function uploadImageToVehicle(
       method: "POST",
       token,
       tenantHost,
-      body: formData,
     }
   );
+}
+
+export async function approveHostVehicle(
+  vehicleId: string,
+  params?: { daily_rate?: string; category?: string },
+  token?: string,
+  tenantHost?: string
+): Promise<Vehicle> {
+  return apiFetch<Vehicle>(`/vehicles/${vehicleId}/approve-host/`, {
+    method: "POST",
+    token,
+    tenantHost,
+    body: JSON.stringify(params || {}),
+  });
+}
+
+export async function rejectHostVehicle(
+  vehicleId: string,
+  reason?: string,
+  token?: string,
+  tenantHost?: string
+): Promise<Vehicle> {
+  return apiFetch<Vehicle>(`/vehicles/${vehicleId}/reject-host/`, {
+    method: "POST",
+    token,
+    tenantHost,
+    body: JSON.stringify({ reason }),
+  });
 }
 
 export { fetchVehicles as getVehicles, fetchVehicle as getVehicle };

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Car,
@@ -10,9 +10,10 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
-  FileCheck
+  FileCheck,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
+import { useStorefrontTitle } from "@/lib/context/branding";
 
 const LOCATIONS = [
   "Banepa",
@@ -109,6 +110,7 @@ const FEATURES_OPTIONS = [
 ];
 
 export default function HostVehiclePage() {
+  useStorefrontTitle("Host Your Vehicle");
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -163,6 +165,37 @@ export default function HostVehiclePage() {
     license_image_name: "",
     driver_smoking: "0",
   });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cust = localStorage.getItem("apex_customer_auth");
+        const saas = localStorage.getItem("apex_saas_auth_session");
+        let name = "";
+        let email = "";
+        let phone = "";
+        if (cust) {
+          const c = JSON.parse(cust);
+          name = c.full_name || `${c.first_name || ""} ${c.last_name || ""}`.trim();
+          email = c.email || "";
+          phone = c.phone || "";
+        } else if (saas) {
+          const s = JSON.parse(saas);
+          name = `${s.user?.first_name || ""} ${s.user?.last_name || ""}`.trim();
+          email = s.user?.email || "";
+          phone = s.user?.phone_number || "";
+        }
+        if (email || name || phone) {
+          setFormData((prev) => ({
+            ...prev,
+            owner_name: prev.owner_name || name,
+            owner_email: prev.owner_email || email,
+            owner_phone: prev.owner_phone || phone,
+          }));
+        }
+      } catch {}
+    }
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -289,12 +322,25 @@ export default function HostVehiclePage() {
         ].filter(Boolean),
       };
 
+      let tenantHost: string | undefined = undefined;
+      if (typeof window !== "undefined") {
+        const searchParams = new URLSearchParams(window.location.search);
+        const tenantParam = searchParams.get("tenant");
+        const cleanHost = window.location.host;
+        if (tenantParam) {
+          tenantHost = `${tenantParam.replace(/:\d+$/, "")}:3000`;
+        } else if (cleanHost && !cleanHost.startsWith("localhost") && !cleanHost.startsWith("127.0.0.1")) {
+          tenantHost = cleanHost;
+        }
+      }
+
       const res = await apiFetch<{
         reference_id: string;
         vehicle_title: string;
         owner_name: string;
       }>("/vehicles/host-register/", {
         method: "POST",
+        tenantHost,
         body: JSON.stringify(payload),
       });
 
@@ -304,13 +350,10 @@ export default function HostVehiclePage() {
         owner_name: formData.owner_name,
       });
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      // Graceful fallback for offline demo
-      setRegistrationSuccess({
-        reference_id: `HOST-${Math.floor(100000 + Math.random() * 900000)}`,
-        vehicle_title: `${formData.manufacturer || "Vehicle"} ${formData.model || "Fleet"}`,
-        owner_name: formData.owner_name,
-      });
+    } catch (err: unknown) {
+      console.error("Vehicle registration submission failed:", err);
+      const msg = err instanceof Error ? err.message : "Registration submission failed. Please verify vehicle details and try again.";
+      setErrorMsg(msg);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setIsSubmitting(false);
@@ -930,14 +973,17 @@ export default function HostVehiclePage() {
                         return (
                           <label
                             key={feat}
-                            onClick={() => handleFeatureToggle(feat)}
-                            className="inline-flex items-center gap-2.5 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-800 hover:border-slate-300 cursor-pointer bg-white select-none transition-colors"
+                            className={`inline-flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-sm cursor-pointer select-none transition-colors ${
+                              isChecked
+                                ? "border-[#e11d2e] bg-red-50/40 text-slate-900"
+                                : "border-slate-200 bg-white text-slate-800 hover:border-slate-300"
+                            }`}
                           >
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              readOnly
-                              className="w-4 h-4 rounded text-[#e11d2e] accent-[#e11d2e] pointer-events-none"
+                              onChange={() => handleFeatureToggle(feat)}
+                              className="w-4 h-4 rounded text-[#e11d2e] accent-[#e11d2e] cursor-pointer"
                             />
                             <span>{feat}</span>
                           </label>

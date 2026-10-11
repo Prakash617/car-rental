@@ -30,11 +30,27 @@ import {
   Check,
   Users,
   Route,
+  Clock,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api/client";
-import { Booking } from "@/types";
+import { Booking, Vehicle } from "@/types";
 import { getSafeImageUrl, DEFAULT_VEHICLE_IMAGE, cn } from "@/lib/utils";
 import { triggerGoogleOAuth, authenticateWithGoogleToken } from "@/lib/googleAuth";
+
+function getPrimaryVehicleImage(images?: any): string | null {
+  if (!images || !Array.isArray(images) || images.length === 0) return null;
+  for (const img of images) {
+    if (typeof img === "string" && (img.startsWith("http") || img.startsWith("data:") || img.startsWith("/"))) return img;
+    if (typeof img === "object" && img?.url) return img.url;
+  }
+  return null;
+}
+
+function extractRefId(desc?: string): string | null {
+  if (!desc) return null;
+  const match = desc.match(/HOST-[A-Z0-9]+/i);
+  return match ? match[0] : null;
+}
 
 function ClientDashboardContent() {
   const searchParams = useSearchParams();
@@ -118,6 +134,11 @@ function ClientDashboardContent() {
   const [selectedInvoice, setSelectedInvoice] = useState<Booking | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
+  // Hosted Vehicles state
+  const [hostedVehicles, setHostedVehicles] = useState<Vehicle[]>([]);
+  const [isLoadingVehicles, setIsLoadingVehicles] = useState(false);
+  const [vehicleSearchQuery, setVehicleSearchQuery] = useState("");
+
   // Carpool state
   const [carpoolRequests, setCarpoolRequests] = useState<any[]>([]);
   const [isLoadingCarpool, setIsLoadingCarpool] = useState(false);
@@ -143,14 +164,19 @@ function ClientDashboardContent() {
     else if (tabParam === "carpool") setActiveTab("carpool");
     else if (tabParam === "kyc") setActiveTab("kyc");
     else if (tabParam === "inquiries") setActiveTab("inquiries");
-    else if (tabParam === "vehicles") setActiveTab("vehicles");
+    else if (tabParam === "vehicles") {
+      setActiveTab("vehicles");
+      if (profile.email || profile.phone) {
+        fetchHostedVehicles(profile.email || profile.phone);
+      }
+    }
     else if (tabParam === "password") setActiveTab("password");
     else setActiveTab("overview");
 
     if (authModeParam === "signup") {
       setAuthMode("signup");
     }
-  }, [tabParam, authModeParam]);
+  }, [tabParam, authModeParam, profile.email, profile.phone]);
 
   // Load existing session on mount
   useEffect(() => {
@@ -176,7 +202,25 @@ function ClientDashboardContent() {
           }
         }
 
-        const stored = localStorage.getItem("apex_customer_auth");
+        let stored = localStorage.getItem("apex_customer_auth");
+        if (!stored) {
+          const saasStored = localStorage.getItem("apex_saas_auth_session");
+          if (saasStored) {
+            try {
+              const saasSession = JSON.parse(saasStored);
+              if (saasSession?.user) {
+                stored = JSON.stringify({
+                  id: saasSession.user.id,
+                  email: saasSession.user.email,
+                  first_name: saasSession.user.first_name,
+                  last_name: saasSession.user.last_name,
+                  phone: saasSession.user.phone_number || "",
+                });
+              }
+            } catch {}
+          }
+        }
+
         if (stored) {
           const customer = JSON.parse(stored);
           const fullName =
@@ -221,6 +265,7 @@ function ClientDashboardContent() {
           setIsAuthenticated(true);
           fetchBookings(email || phone);
           fetchCarpoolRequests(phone || email);
+          fetchHostedVehicles(email || phone);
         }
       } catch (e) {
         console.error("Failed to parse stored customer session:", e);
@@ -271,6 +316,27 @@ function ClientDashboardContent() {
     }
   };
 
+  // Fetch client hosted vehicles
+  const fetchHostedVehicles = async (identifier = "") => {
+    setIsLoadingVehicles(true);
+    try {
+      const emailToUse = identifier?.includes("@") ? identifier : profile.email;
+      const phoneToUse = !identifier?.includes("@") ? identifier : profile.phone;
+      const params = new URLSearchParams();
+      if (emailToUse) params.set("email", emailToUse);
+      if (phoneToUse && phoneToUse !== "—") params.set("phone", phoneToUse);
+
+      const res = await apiFetch<any>(`/vehicles/my-hosted/?${params.toString()}`);
+      const list = Array.isArray(res) ? res : res?.data || [];
+      setHostedVehicles(list);
+    } catch (err) {
+      console.error("Error loading hosted vehicles:", err);
+      setHostedVehicles([]);
+    } finally {
+      setIsLoadingVehicles(false);
+    }
+  };
+
   const applyCustomerToState = (customer: any) => {
     const fullName =
       customer.full_name ||
@@ -318,6 +384,7 @@ function ClientDashboardContent() {
     setAuthSuccess(`Welcome to Apex Rentals, ${customer.first_name || fullName}!`);
     fetchBookings(email || phone);
     fetchCarpoolRequests(phone || email);
+    fetchHostedVehicles(email || phone);
   };
 
   const handleKycSubmit = async (e: React.FormEvent) => {
@@ -513,7 +580,12 @@ function ClientDashboardContent() {
     if (!searchIdentifier.trim()) return;
     setIsGuestMode(true);
     fetchBookings(searchIdentifier.trim());
-    setActiveTab("bookings");
+    fetchHostedVehicles(searchIdentifier.trim());
+    if (tabParam === "vehicles") {
+      setActiveTab("vehicles");
+    } else {
+      setActiveTab("bookings");
+    }
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -1223,6 +1295,111 @@ function ClientDashboardContent() {
                       </div>
                     )}
                   </div>
+
+                  {/* Hosted Vehicles Overview Card */}
+                  <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs">
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <Car className="w-4.5 h-4.5 text-[#e11d2e]" />
+                        <h2 className="text-base font-bold text-slate-900">
+                          My Hosted Vehicles
+                        </h2>
+                        {hostedVehicles.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+                            {hostedVehicles.length}
+                          </span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab("vehicles");
+                          router.replace("/client?tab=vehicles", { scroll: false });
+                        }}
+                        className="text-xs font-bold text-[#e11d2e] hover:underline cursor-pointer"
+                      >
+                        View all
+                      </button>
+                    </div>
+
+                    {isLoadingVehicles ? (
+                      <div className="py-12 flex justify-center">
+                        <div className="w-6 h-6 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : hostedVehicles.length > 0 ? (
+                      <div className="divide-y divide-slate-100">
+                        {hostedVehicles.slice(0, 3).map((v) => {
+                          const isPending = v.status === "pending_approval" || v.is_verified === false;
+                          const isApproved = v.status === "available" && v.is_verified === true;
+                          const primaryImg = getPrimaryVehicleImage(v.images);
+
+                          return (
+                            <div
+                              key={v.id}
+                              className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="w-14 h-11 rounded-lg bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center border border-slate-200">
+                                  {primaryImg ? (
+                                    <img src={primaryImg} alt={v.brand} className="w-full h-full object-cover" />
+                                  ) : (
+                                    <Car className="w-5 h-5 text-slate-400" />
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-xs text-slate-900">
+                                      {v.brand} {v.model}
+                                    </span>
+                                    <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                      {v.license_plate}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-slate-500">
+                                    {v.year} &bull; NPR {Number(v.daily_rate).toLocaleString()} / day &bull; {v.driver_name || "Self Chauffeur"}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {isPending ? (
+                                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-amber-600" />
+                                    <span>Under Review</span>
+                                  </span>
+                                ) : isApproved ? (
+                                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    <span>Live in Fleet</span>
+                                  </span>
+                                ) : (
+                                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                                    {v.status}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center flex flex-col items-center">
+                        <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
+                          <Car className="w-5 h-5" />
+                        </div>
+                        <p className="text-xs text-slate-500 font-normal">
+                          No hosted vehicle applications found under your profile.
+                        </p>
+                        <Link
+                          href="/list-your-car"
+                          className="mt-3 px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-black transition-colors"
+                        >
+                          Host Your Vehicle
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
 
@@ -1905,42 +2082,274 @@ function ClientDashboardContent() {
               {/* TAB: MY VEHICLES (HOST) */}
               {activeTab === "vehicles" && (
                 <div className="bg-white rounded-2xl border border-slate-200/90 p-6 shadow-xs space-y-6">
+                  {/* Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                     <div>
-                      <h2 className="text-lg font-bold text-slate-900">
-                        My Hosted Vehicles
-                      </h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-bold text-slate-900">
+                          My Hosted Vehicles &amp; Applications
+                        </h2>
+                        {hostedVehicles.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+                            {hostedVehicles.length}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Monetize your vehicle with Sajilo Rentals&apos; verified host network.
+                        Track review stage, approval progress, and fleet earnings for your vehicle registrations.
                       </p>
                     </div>
 
-                    <Link
-                      href="/list-your-car"
-                      className="px-4 py-2 bg-[#e11d2e] hover:bg-[#b01524] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
-                    >
-                      <PlusCircle className="w-3.5 h-3.5" />
-                      <span>Host a Vehicle</span>
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href="/list-your-car"
+                        className="px-4 py-2 bg-[#e11d2e] hover:bg-[#b01524] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
+                      >
+                        <PlusCircle className="w-3.5 h-3.5" />
+                        <span>Host Another Vehicle</span>
+                      </Link>
+                    </div>
                   </div>
 
-                  <div className="py-12 flex flex-col items-center justify-center text-center max-w-md mx-auto">
-                    <div className="w-12 h-12 rounded-2xl bg-red-50 text-[#e11d2e] flex items-center justify-center mb-3">
-                      <Car className="w-6 h-6" />
+                  {/* Search / Lookup Bar */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      fetchHostedVehicles(vehicleSearchQuery.trim() || profile.email || profile.phone);
+                    }}
+                    className="flex flex-col sm:flex-row gap-2"
+                  >
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        value={vehicleSearchQuery}
+                        onChange={(e) => setVehicleSearchQuery(e.target.value)}
+                        placeholder={
+                          profile.email
+                            ? `Search by email or phone (Default: ${profile.email})`
+                            : "Enter applicant email or phone number to look up vehicles..."
+                        }
+                        className="w-full h-10 pl-9 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#e11d2e] text-slate-800 placeholder:text-slate-400"
+                      />
                     </div>
-                    <h3 className="text-base font-bold text-slate-900">
-                      Earn Passive Revenue as a Fleet Host
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1 mb-5 leading-relaxed">
-                      List your Scorpio, EV, HiAce, or luxury sedan. Sajilo Rentals provides vetted professional chauffeurs, insurance handling, and guaranteed weekly payouts.
-                    </p>
-                    <Link
-                      href="/list-your-car"
-                      className="px-6 py-2.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                    <button
+                      type="submit"
+                      disabled={isLoadingVehicles}
+                      className="px-4 h-10 bg-slate-900 hover:bg-black disabled:opacity-50 text-white text-xs font-bold rounded-xl shrink-0 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      Register Your Vehicle Now →
-                    </Link>
-                  </div>
+                      {isLoadingVehicles ? (
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <span>Look Up</span>
+                      )}
+                    </button>
+                    {(profile.email || profile.phone) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVehicleSearchQuery("");
+                          fetchHostedVehicles(profile.email || profile.phone);
+                        }}
+                        className="px-3 h-10 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </form>
+
+                  {/* Summary Metric Badges */}
+                  {hostedVehicles.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+                        <span className="text-[11px] font-medium text-slate-500 block">Total Applied</span>
+                        <span className="text-lg font-extrabold text-slate-900 mt-0.5 block">{hostedVehicles.length}</span>
+                      </div>
+                      <div className="p-3 bg-amber-50/60 border border-amber-200/60 rounded-xl">
+                        <span className="text-[11px] font-medium text-amber-700 block">Awaiting Review</span>
+                        <span className="text-lg font-extrabold text-amber-900 mt-0.5 block">
+                          {hostedVehicles.filter((v) => v.status === "pending_approval" || v.is_verified === false).length}
+                        </span>
+                      </div>
+                      <div className="p-3 bg-emerald-50/60 border border-emerald-200/60 rounded-xl">
+                        <span className="text-[11px] font-medium text-emerald-700 block">Live in Fleet</span>
+                        <span className="text-lg font-extrabold text-emerald-900 mt-0.5 block">
+                          {hostedVehicles.filter((v) => v.status === "available" && v.is_verified === true).length}
+                        </span>
+                      </div>
+                      <div className="p-3 bg-blue-50/60 border border-blue-200/60 rounded-xl">
+                        <span className="text-[11px] font-medium text-blue-700 block">On Trip / Booked</span>
+                        <span className="text-lg font-extrabold text-blue-900 mt-0.5 block">
+                          {hostedVehicles.filter((v) => v.status === "rented").length}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Loading State */}
+                  {isLoadingVehicles && (
+                    <div className="py-16 flex flex-col items-center justify-center text-center">
+                      <div className="w-8 h-8 border-3 border-[#e11d2e] border-t-transparent rounded-full animate-spin mb-3" />
+                      <p className="text-xs text-slate-500 font-semibold">Fetching your vehicle applications...</p>
+                    </div>
+                  )}
+
+                  {/* Vehicles Grid */}
+                  {!isLoadingVehicles && hostedVehicles.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                      {hostedVehicles.map((vehicle) => {
+                        const isPending =
+                          vehicle.status === "pending_approval" || vehicle.is_verified === false;
+                        const isApproved =
+                          vehicle.status === "available" && vehicle.is_verified === true;
+                        const isRented = vehicle.status === "rented";
+                        const isInactive = vehicle.status === "inactive";
+                        const primaryImg = getPrimaryVehicleImage(vehicle.images);
+                        const refId = extractRefId(vehicle.description);
+
+                        return (
+                          <div
+                            key={vehicle.id}
+                            className="rounded-2xl border border-slate-200/90 bg-white overflow-hidden shadow-2xs hover:border-slate-300 transition-all flex flex-col"
+                          >
+                            {/* Card Image Banner */}
+                            <div className="relative h-44 bg-slate-100 overflow-hidden">
+                              {primaryImg ? (
+                                <img
+                                  src={primaryImg}
+                                  alt={`${vehicle.brand} ${vehicle.model}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 text-slate-400">
+                                  <Car className="w-12 h-12 stroke-[1.5] mb-1 text-slate-300" />
+                                  <span className="text-[11px] font-medium">No vehicle photo uploaded</span>
+                                </div>
+                              )}
+
+                              {/* Status Badge */}
+                              <div className="absolute top-3 left-3">
+                                {isPending && (
+                                  <span className="bg-amber-500 text-black text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5" />
+                                    <span>Under Company Review</span>
+                                  </span>
+                                )}
+                                {isApproved && (
+                                  <span className="bg-emerald-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Approved &amp; Live in Fleet</span>
+                                  </span>
+                                )}
+                                {isRented && (
+                                  <span className="bg-blue-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                                    <Route className="w-3.5 h-3.5" />
+                                    <span>Currently on Trip</span>
+                                  </span>
+                                )}
+                                {isInactive && (
+                                  <span className="bg-slate-700 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5" />
+                                    <span>Declined / Inactive</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* License Plate Pill */}
+                              <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-xs text-white text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg border border-white/10 shadow-sm">
+                                {vehicle.license_plate}
+                              </div>
+                            </div>
+
+                            {/* Card Content */}
+                            <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                              <div>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <h3 className="text-base font-bold text-slate-900 tracking-tight">
+                                      {vehicle.brand} {vehicle.model}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                      {vehicle.year} • {vehicle.category ? vehicle.category.toUpperCase() : "STANDARD"} • {vehicle.fuel_type || "Petrol"}
+                                    </p>
+                                  </div>
+                                  {refId && (
+                                    <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200 shrink-0">
+                                      {refId}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Pricing & Specs Table */}
+                                <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-xs">
+                                  <div>
+                                    <span className="text-slate-400 text-[11px] block">Base Rate</span>
+                                    <span className="font-bold text-slate-900">
+                                      NPR {Number(vehicle.daily_rate).toLocaleString()} / day
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-400 text-[11px] block">Assigned Chauffeur</span>
+                                    <span className="font-semibold text-slate-800 truncate block">
+                                      {vehicle.driver_name || "Self / Host Provided"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Review Notification Box */}
+                              {isPending && (
+                                <div className="rounded-xl bg-amber-50 border border-amber-200/80 p-3 text-xs text-amber-900 flex items-start gap-2.5">
+                                  <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="font-bold text-amber-950">Awaiting Fleet Review</p>
+                                    <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                                      Your application has been received by SuperBang Rentals. Company administration is reviewing your bluebook, vehicle condition, and driver license.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {isApproved && (
+                                <div className="rounded-xl bg-emerald-50 border border-emerald-200/80 p-3 text-xs text-emerald-900 flex items-start gap-2.5">
+                                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="font-bold text-emerald-950">Active in Fleet</p>
+                                    <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                                      This vehicle is approved and live in the public catalog for client reservations. Payouts are credited according to completed bookings.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Empty State */}
+                  {!isLoadingVehicles && hostedVehicles.length === 0 && (
+                    <div className="py-12 flex flex-col items-center justify-center text-center max-w-md mx-auto">
+                      <div className="w-12 h-12 rounded-2xl bg-red-50 text-[#e11d2e] flex items-center justify-center mb-3">
+                        <Car className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-base font-bold text-slate-900">
+                        No Hosted Vehicles Found
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1 mb-5 leading-relaxed">
+                        {profile.email
+                          ? `We did not find any vehicles registered under ${profile.email}. If you submitted using a different email, try searching above.`
+                          : "Monetize your vehicle with our verified host network. Earn passive revenue with guaranteed weekly payouts."}
+                      </p>
+                      <Link
+                        href="/list-your-car"
+                        className="px-6 py-2.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                      >
+                        Register Your Vehicle Now →
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
 

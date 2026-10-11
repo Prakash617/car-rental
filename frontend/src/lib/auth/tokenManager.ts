@@ -43,6 +43,10 @@ export function saveStoredSession(session: AuthSession): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    if (session.tenant_domain) {
+      const cleanTenant = session.tenant_domain.replace(/:\d+$/, "");
+      document.cookie = `tenant_ctx=${cleanTenant}; path=/; max-age=31536000; SameSite=Lax`;
+    }
     window.dispatchEvent(
       new CustomEvent(AUTH_SESSION_UPDATED_EVENT, { detail: session })
     );
@@ -58,6 +62,7 @@ export function clearStoredSession(): void {
   if (typeof window === "undefined") return;
   try {
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    document.cookie = "tenant_ctx=; path=/; max-age=0";
     window.dispatchEvent(new CustomEvent(AUTH_SESSION_EXPIRED_EVENT));
   } catch (err) {
     console.warn("Failed to clear auth session:", err);

@@ -88,13 +88,13 @@ export function ModernVehicleCard({ vehicle, branding, onSelect }: VehicleCardPr
             <span className="text-[11px] text-zinc-500 block font-sans">Starting at</span>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-mono tabular-nums font-extrabold text-white">
-                {branding.currency || "USD"} {vehicle.daily_rate}
+                {branding.currency || "Rs."} {vehicle.daily_rate}
               </span>
               <span className="text-xs text-zinc-500">/day</span>
             </div>
             {vehicle.deposit_amount && (
               <span className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5 font-mono">
-                <ShieldCheck className="w-2.5 h-2.5 text-zinc-400" /> Deposit: {branding.currency || "USD"} {vehicle.deposit_amount}
+                <ShieldCheck className="w-2.5 h-2.5 text-zinc-400" /> Deposit: {branding.currency || "Rs."} {vehicle.deposit_amount}
               </span>
             )}
           </div>

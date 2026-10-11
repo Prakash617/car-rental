@@ -14,8 +14,8 @@ class Tenant(TenantMixin):
     name = models.CharField("Company Name", max_length=120)
     slug = models.SlugField("Tenant Slug", unique=True, max_length=63)
     is_active = models.BooleanField("Is Active", default=True)
-    timezone = models.CharField("Timezone", max_length=50, default="UTC")
-    currency = models.CharField("Currency Code", max_length=3, default="USD")
+    timezone = models.CharField("Timezone", max_length=50, default="Asia/Kathmandu")
+    currency = models.CharField("Currency Code", max_length=10, default="NPR")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

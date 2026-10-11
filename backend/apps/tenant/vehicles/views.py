@@ -43,6 +43,7 @@ class VehicleViewSet(StandardResponseMixin, viewsets.ModelViewSet):
             "retrieve",
             "upload_image",
             "host_register",
+            "my_hosted",
             "booked_dates",
             "check_availability",
         ]:
@@ -51,11 +52,17 @@ class VehicleViewSet(StandardResponseMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = getattr(self.request, "user", None)
-        membership = getattr(self.request, "tenant_membership", None)
-        if user and user.is_authenticated and membership and membership.is_active:
-            return Vehicle.objects.all()
-        # Anonymous public catalog only sees non-decommissioned vehicles
-        return Vehicle.objects.exclude(status=VehicleStatus.INACTIVE)
+        if user and user.is_authenticated:
+            from common.permissions.tenant import _resolve_tenant_membership
+
+            membership = _resolve_tenant_membership(self.request)
+            if (membership and membership.is_active) or getattr(user, "is_platform_admin", False):
+                return Vehicle.objects.all()
+
+        # Anonymous public catalog only sees non-decommissioned, verified vehicles
+        return Vehicle.objects.exclude(
+            status__in=[VehicleStatus.INACTIVE, VehicleStatus.PENDING_APPROVAL]
+        ).filter(is_verified=True)
 
     def perform_create(self, serializer):
         vehicle = serializer.save()
@@ -218,7 +225,7 @@ class VehicleViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 "rate_4h": rate_4h,
                 "rate_8h": rate_8h,
                 "fuel_rate_per_km": 2.50,
-                "status": VehicleStatus.AVAILABLE,
+                "status": VehicleStatus.PENDING_APPROVAL,
                 "is_verified": False,
                 "driver_included": True,
                 "driver_name": driver_name,
@@ -235,10 +242,185 @@ class VehicleViewSet(StandardResponseMixin, viewsets.ModelViewSet):
                 "vehicle_id": str(vehicle.id),
                 "owner_name": owner_name,
                 "vehicle_title": f"{vehicle.brand} {vehicle.model} ({vehicle.year})",
-                "status": "pending_inspection",
-                "message": "Thank you! Your vehicle registration application has been submitted to Sajilo Rental.",
+                "status": "pending_approval",
+                "message": "Thank you! Your vehicle registration application has been submitted to the fleet owner for review.",
             },
             status_code=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path="my-hosted",
+        permission_classes=[AllowAny],
+    )
+    def my_hosted(self, request):
+        """
+        Lookup endpoint for vehicle owners to view their applied vehicles and review status.
+        Matches by owner email or contact phone number recorded in the application.
+        """
+        from django.db.models import Q
+        email = request.query_params.get("email", "").strip()
+        phone = request.query_params.get("phone", "").strip()
+
+        if not email and not phone and request.user and request.user.is_authenticated:
+            email = getattr(request.user, "email", "")
+
+        if not email and not phone:
+            return self.success_response(data=[])
+
+        q = Q()
+        if email:
+            q |= Q(description__icontains=email)
+        if phone:
+            clean_phone = phone.replace("+", "").replace(" ", "").replace("-", "")
+            q |= Q(description__icontains=phone)
+            if clean_phone and len(clean_phone) >= 6:
+                q |= Q(description__icontains=clean_phone)
+
+        vehicles = Vehicle.objects.filter(q).order_by("-created_at")
+        serializer = self.get_serializer(vehicles, many=True)
+        return self.success_response(data=serializer.data)
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="approve-host",
+        permission_classes=[IsTenantStaffOrAbove],
+    )
+    def approve_host(self, request, pk=None):
+        """
+        Company owner / staff action to review and approve a hosted vehicle submission.
+        Marks is_verified=True, status=AVAILABLE, and optionally updates daily rate or category.
+        """
+        vehicle = self.get_object()
+        data = request.data
+        if "daily_rate" in data and data["daily_rate"]:
+            try:
+                vehicle.daily_rate = float(data["daily_rate"])
+            except (ValueError, TypeError):
+                pass
+        if "category" in data and data["category"]:
+            vehicle.category = data["category"]
+
+        vehicle.is_verified = True
+        vehicle.status = VehicleStatus.AVAILABLE
+        vehicle.save()
+
+        user_email = getattr(self.request.user, "email", "staff@concierge.local")
+        from apps.tenant.audit.services import AuditService
+        AuditService.log(
+            actor_email=user_email,
+            action="APPROVE_HOST_VEHICLE",
+            resource_type="Vehicle",
+            resource_id=str(vehicle.id),
+            details={
+                "brand": vehicle.brand,
+                "model": vehicle.model,
+                "plate": vehicle.license_plate,
+                "daily_rate": str(vehicle.daily_rate),
+                "status": vehicle.status,
+                "is_verified": True,
+            },
+        )
+
+        serializer = self.get_serializer(vehicle)
+        return self.success_response(
+            data=serializer.data,
+            message=f"Vehicle '{vehicle.brand} {vehicle.model}' ({vehicle.license_plate}) approved and activated into live fleet.",
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="reject-host",
+        permission_classes=[IsTenantStaffOrAbove],
+    )
+    def reject_host(self, request, pk=None):
+        """
+        Company owner / staff action to reject a hosted vehicle submission.
+        Marks status=INACTIVE, is_verified=False.
+        """
+        vehicle = self.get_object()
+        reason = request.data.get("reason", "Submission declined by fleet owner.")
+
+        vehicle.is_verified = False
+        vehicle.status = VehicleStatus.INACTIVE
+        if reason:
+            vehicle.description = f"{vehicle.description or ''}\n\n[REJECTION NOTE]: {reason}"
+        vehicle.save()
+
+        user_email = getattr(self.request.user, "email", "staff@concierge.local")
+        from apps.tenant.audit.services import AuditService
+        AuditService.log(
+            actor_email=user_email,
+            action="REJECT_HOST_VEHICLE",
+            resource_type="Vehicle",
+            resource_id=str(vehicle.id),
+            details={
+                "brand": vehicle.brand,
+                "model": vehicle.model,
+                "plate": vehicle.license_plate,
+                "reason": reason,
+            },
+        )
+
+        serializer = self.get_serializer(vehicle)
+        return self.success_response(
+            data=serializer.data,
+            message=f"Vehicle '{vehicle.brand} {vehicle.model}' host submission declined.",
+        )
+
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="set_status",
+        permission_classes=[IsTenantStaffOrAbove],
+    )
+    def set_status(self, request, pk=None):
+        """
+        Quick status update action from the fleet management table dropdown.
+        """
+        vehicle = self.get_object()
+        new_status = request.data.get("status")
+        if not new_status:
+            return self.error_response(
+                message="Status field is required.",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        valid_statuses = [choice[0] for choice in VehicleStatus.choices]
+        if new_status not in valid_statuses:
+            return self.error_response(
+                message=f"Invalid status '{new_status}'. Must be one of: {', '.join(valid_statuses)}",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        vehicle.status = new_status
+        if new_status == VehicleStatus.AVAILABLE:
+            vehicle.is_verified = True
+        vehicle.save()
+
+        user_email = getattr(self.request.user, "email", "staff@concierge.local")
+        from apps.tenant.audit.services import AuditService
+        AuditService.log(
+            actor_email=user_email,
+            action="CHANGE_VEHICLE_STATUS",
+            resource_type="Vehicle",
+            resource_id=str(vehicle.id),
+            details={
+                "brand": vehicle.brand,
+                "model": vehicle.model,
+                "plate": vehicle.license_plate,
+                "new_status": new_status,
+                "is_verified": vehicle.is_verified,
+            },
+        )
+
+        serializer = self.get_serializer(vehicle)
+        return self.success_response(
+            data=serializer.data,
+            message=f"Vehicle '{vehicle.brand} {vehicle.model}' status updated to {new_status}.",
         )
 
     @action(

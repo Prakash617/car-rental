@@ -23,6 +23,8 @@ const DEFAULT_BRANDING: TenantBranding = {
   currency: "Rs.",
   timezone: "Asia/Kathmandu",
   active_theme: "sajilo",
+  website_title: "Apex Rentals | Luxury & Standard Car Rental",
+  favicon_url: "/brand/favicon.ico",
   hero_title: "Rent A Car With Driver",
   hero_subtitle: "Experience seamless mobility across 14+ cities with verified vehicles and professional chauffeurs.",
   seo_meta_title: "Apex Rentals | Luxury & Standard Car Rental",

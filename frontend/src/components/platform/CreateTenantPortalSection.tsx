@@ -268,8 +268,8 @@ export function CreateTenantPortalSection() {
         email: email.trim().toLowerCase(),
         password: effectivePassword,
         phone_number: cleanPhone,
-        currency: "USD",
-        timezone: "UTC",
+        currency: "NPR",
+        timezone: "Asia/Kathmandu",
       });
 
       setCreatedResult(result);

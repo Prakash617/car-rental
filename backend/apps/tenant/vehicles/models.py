@@ -34,6 +34,7 @@ class VehicleStatus(models.TextChoices):
     RENTED = "rented", "Rented"
     MAINTENANCE = "maintenance", "Under Maintenance"
     INACTIVE = "inactive", "Inactive / Decommissioned"
+    PENDING_APPROVAL = "pending_approval", "Pending Review"
 
 
 class Category(models.Model):

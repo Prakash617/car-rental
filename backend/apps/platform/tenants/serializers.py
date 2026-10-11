@@ -67,8 +67,8 @@ class ProvisionTenantSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=60, default="Admin")
     last_name = serializers.CharField(max_length=60, default="Owner")
     phone_number = serializers.CharField(max_length=30, required=False, allow_blank=True)
-    currency = serializers.CharField(max_length=10, default="USD")
-    timezone = serializers.CharField(max_length=50, default="UTC")
+    currency = serializers.CharField(max_length=10, default="NPR")
+    timezone = serializers.CharField(max_length=50, default="Asia/Kathmandu")
 
     def validate_subdomain(self, value):
         val = value.lower().strip()

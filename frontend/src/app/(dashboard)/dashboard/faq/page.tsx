@@ -50,13 +50,21 @@ function faqToFormState(faq: FAQItem, expanded = false): FAQFormState {
 }
 
 export default function FAQManagerPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const [items, setItems] = useState<FAQFormState[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [globalFeedback, setGlobalFeedback] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
+
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
 
   const showFeedback = (type: "success" | "error", message: string) => {
     setGlobalFeedback({ type, message });
@@ -66,9 +74,7 @@ export default function FAQManagerPage() {
   const loadFAQs = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Use internal dashboard endpoint that returns all (including inactive) when staff-authenticated
-      // For now we use the public endpoint — all items are active in demo
-      const faqs = await getPublicFAQs();
+      const faqs = await getPublicFAQs(tenantHost);
       setItems(faqs.map((f) => faqToFormState(f)));
     } catch (err) {
       console.error("Failed to load FAQs:", err);
@@ -76,7 +82,7 @@ export default function FAQManagerPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [tenantHost]);
 
   useEffect(() => {
     loadFAQs();
@@ -116,7 +122,8 @@ export default function FAQManagerPage() {
             is_active: item.is_active,
             order: item.order,
           },
-          token || undefined
+          token || undefined,
+          tenantHost
         );
         setItems((prev) =>
           prev.map((it, i) =>
@@ -133,7 +140,8 @@ export default function FAQManagerPage() {
             is_active: item.is_active,
             order: item.order,
           },
-          token || undefined
+          token || undefined,
+          tenantHost
         );
         setItems((prev) =>
           prev.map((it, i) =>
@@ -159,7 +167,7 @@ export default function FAQManagerPage() {
     if (!confirm(`Delete "${item.question.substring(0, 60)}..."?`)) return;
 
     try {
-      await deleteFAQ(item.id, token || undefined);
+      await deleteFAQ(item.id, token || undefined, tenantHost);
       setItems((prev) => prev.filter((_, i) => i !== idx));
       showFeedback("success", "FAQ item deleted");
     } catch (err: unknown) {

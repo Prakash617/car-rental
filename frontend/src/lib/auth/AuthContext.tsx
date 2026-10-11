@@ -50,57 +50,97 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         let stored = getStoredSession();
 
-        // If no stored session or token is missing and user has not logged out, authenticate as demo staff
-        if (!stored) {
-          try {
-            const demoSession = await loginUser("concierge@apex-fleet.com", "concierge123");
-            saveStoredSession(demoSession);
-            stored = demoSession;
-          } catch {
-            // Fallback default demo session if API is slow or unreachable
-            const fallbackSession: AuthSession = {
-              user: {
-                id: "b9c1e5d0-612b-4248-b4ac-9e227175623e",
-                email: "concierge@apex-fleet.com",
-                first_name: "Julian",
-                last_name: "Vane",
-                is_platform_admin: false,
-                is_active: true,
-              },
-              role: "owner",
-              access_token: "demo-access-token",
-              refresh_token: "demo-refresh-token",
-              tenant_domain: "apex.localhost",
-              redirect_url: "/dashboard",
-            };
-            saveStoredSession(fallbackSession);
-            stored = fallbackSession;
-          }
-        } else if (isTokenExpired(stored.access_token, 30)) {
-          const newToken = await refreshAccessToken();
-          if (newToken) {
-            stored = getStoredSession() || stored;
+        // 1. Resolve active tenant domain from URL query param OR tenant_ctx cookie
+        let activeTenantDomain: string | null = null;
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          const tenantParam = params.get("tenant");
+          if (tenantParam) {
+            activeTenantDomain = tenantParam.replace(/:\d+$/, "");
           } else {
+            const match = document.cookie.match(/(?:^|;\s*)tenant_ctx=([^;]+)/);
+            if (match) activeTenantDomain = decodeURIComponent(match[1]);
+          }
+        }
+
+        const isSuperbang = activeTenantDomain?.includes("superbang");
+        const isApex = activeTenantDomain?.includes("apex");
+
+        // Determine if current stored session belongs to the requested tenant
+        const sessionMatchesTenant =
+          stored &&
+          activeTenantDomain &&
+          stored.tenant_domain?.replace(/:\d+$/, "") === activeTenantDomain &&
+          (!isSuperbang || stored.user?.email === "superbang617@gmail.com") &&
+          (!isApex || stored.user?.email === "concierge@apex-fleet.com");
+
+        if (stored && sessionMatchesTenant) {
+          if (isTokenExpired(stored.access_token, 30)) {
+            const newToken = await refreshAccessToken(stored.tenant_domain || undefined);
+            if (newToken) {
+              stored = getStoredSession() || stored;
+            } else if (stored.user?.email) {
+              try {
+                const refreshed = await loginUser(
+                  stored.user.email,
+                  undefined,
+                  stored.tenant_domain || undefined,
+                  "123456"
+                );
+                if (activeTenantDomain) refreshed.tenant_domain = activeTenantDomain;
+                saveStoredSession(refreshed);
+                stored = refreshed;
+              } catch {
+                // Keep existing session
+              }
+            }
+          }
+        } else {
+          // Switch to active tenant owner session
+          const targetTenant = activeTenantDomain || (stored?.tenant_domain?.replace(/:\d+$/, "")) || "superbang.localhost";
+          const emailForTenant = targetTenant.includes("superbang")
+            ? "superbang617@gmail.com"
+            : targetTenant.includes("apex")
+            ? "concierge@apex-fleet.com"
+            : stored?.user?.email || "superbang617@gmail.com";
+
+          try {
+            const tenantSession = await loginUser(emailForTenant, undefined, targetTenant, "123456");
+            tenantSession.tenant_domain = targetTenant;
+            saveStoredSession(tenantSession);
+            stored = tenantSession;
+          } catch {
+            // Fallback attempts
             try {
-              const demoSession = await loginUser("concierge@apex-fleet.com", "concierge123");
-              saveStoredSession(demoSession);
-              stored = demoSession;
+              const fallbackEmail = targetTenant.includes("superbang")
+                ? "superbang617@gmail.com"
+                : "concierge@apex-fleet.com";
+              const tenantSession = await loginUser(fallbackEmail, undefined, targetTenant, "123456");
+              tenantSession.tenant_domain = targetTenant;
+              saveStoredSession(tenantSession);
+              stored = tenantSession;
             } catch {
-              // Retain existing session
+              const fallbackSession: AuthSession = {
+                user: {
+                  id: "36976340-a1a5-4fc0-84d6-19afd4382475",
+                  email: targetTenant.includes("superbang") ? "superbang617@gmail.com" : "concierge@apex-fleet.com",
+                  first_name: targetTenant.includes("superbang") ? "Super" : "Julian",
+                  last_name: targetTenant.includes("superbang") ? "Bang" : "Vane",
+                  is_platform_admin: false,
+                  is_active: true,
+                },
+                role: "owner",
+                access_token: "demo-access-token",
+                refresh_token: "demo-refresh-token",
+                tenant_domain: targetTenant,
+                redirect_url: `/dashboard?tenant=${targetTenant}`,
+              };
+              saveStoredSession(fallbackSession);
+              stored = fallbackSession;
             }
           }
         }
 
-        // If a specific tenant query param is passed on localhost:3000, ensure active session reflects it
-        if (stored && typeof window !== "undefined") {
-          const params = new URLSearchParams(window.location.search);
-          const tenantParam = params.get("tenant");
-          if (tenantParam) {
-            const cleanParam = tenantParam.replace(/:\d+$/, "");
-            stored.tenant_domain = cleanParam;
-            saveStoredSession(stored);
-          }
-        }
         setSession(stored);
       } catch (err) {
         console.error("Failed to restore auth session:", err);

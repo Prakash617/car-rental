@@ -61,8 +61,8 @@ export default function PlatformSuperAdminPage() {
     password: "Password123!",
     first_name: "Fleet",
     last_name: "Manager",
-    currency: "USD",
-    timezone: "UTC",
+    currency: "NPR",
+    timezone: "Asia/Kathmandu",
   });
 
   const showNotification = (type: "success" | "error", message: string) => {
@@ -161,8 +161,8 @@ export default function PlatformSuperAdminPage() {
         password: "Password123!",
         first_name: "Fleet",
         last_name: "Manager",
-        currency: "USD",
-        timezone: "UTC",
+        currency: "NPR",
+        timezone: "Asia/Kathmandu",
       });
       loadPlatformData(token);
     } catch (err: unknown) {

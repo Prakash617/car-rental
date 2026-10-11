@@ -10,19 +10,36 @@ export function cn(...inputs: ClassValue[]): string {
 }
 
 /**
- * Formats a monetary number into standard localized currency string.
+ * Formats a monetary number into standard localized currency string (defaults to Nepalese Rupee NPR / Rs.).
  */
 export function formatCurrency(
   amount: number | string,
-  currency: string = "USD",
-  locale: string = "en-US"
+  currency: string = "NPR",
+  locale: string = "en-NP"
 ): string {
   const numericAmount = typeof amount === "string" ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 2,
-  }).format(numericAmount || 0);
+  if (currency === "Rs." || currency === "NPR" || currency === "Rs") {
+    return `Rs. ${(numericAmount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency,
+      minimumFractionDigits: 2,
+    }).format(numericAmount || 0);
+  } catch {
+    return `${currency} ${(numericAmount || 0).toLocaleString()}`;
+  }
+}
+
+/**
+ * Returns a display-friendly currency symbol, defaulting to "Rs." for NPR / Nepalese Rupee.
+ */
+export function getCurrencySymbol(currency?: string): string {
+  if (!currency || currency === "NPR" || currency === "Rs." || currency === "Rs") {
+    return "Rs.";
+  }
+  return currency;
 }
 
 export const DEFAULT_VEHICLE_IMAGE =

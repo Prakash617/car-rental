@@ -82,7 +82,7 @@ export function UrbanVehicleCard({ vehicle, branding, onSelect }: VehicleCardPro
             <span className="text-[10px] text-slate-400 block font-sans">City Daily Pass</span>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-mono tabular-nums font-black text-white">
-                {branding.currency || "USD"} {vehicle.daily_rate}
+                {branding.currency || "Rs."} {vehicle.daily_rate}
               </span>
               <span className="text-xs text-slate-400">/day</span>
             </div>

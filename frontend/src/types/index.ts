@@ -1,4 +1,4 @@
-export type VehicleStatus = "available" | "reserved" | "rented" | "maintenance" | "inactive";
+export type VehicleStatus = "available" | "reserved" | "rented" | "maintenance" | "inactive" | "pending_approval";
 export type VehicleCategory = "economy" | "compact" | "sedan" | "suv" | "luxury" | "sports" | "van" | "electric";
 export type TransmissionType = "automatic" | "manual";
 export type FuelType = "petrol" | "diesel" | "hybrid" | "electric";
@@ -87,7 +87,9 @@ export interface Booking {
 
 export interface TenantBranding {
   name: string;
+  website_title?: string;
   logo_url?: string;
+  favicon_url?: string;
   primary_color: string;
   accent_color: string;
   font_heading: string;

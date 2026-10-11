@@ -27,19 +27,29 @@ import { getVehicles } from "@/lib/api/vehicles";
 import { Booking, DashboardOverview, Vehicle } from "@/types";
 
 export default function DashboardOverviewPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Resolve active tenant domain
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
+  const storefrontUrl = `http://${cleanDomain}:3000`;
+
   const loadData = useCallback(async () => {
     try {
       const [overviewData, bookingsData, vehiclesData] = await Promise.all([
-        getDashboardOverview(token || undefined).catch(() => null),
-        getBookings(undefined, token || undefined).catch(() => []),
-        getVehicles().catch(() => []),
+        getDashboardOverview(token || undefined, tenantHost).catch(() => null),
+        getBookings(undefined, token || undefined, tenantHost).catch(() => []),
+        getVehicles(undefined, token || undefined, tenantHost).catch(() => []),
       ]);
 
       if (overviewData) setOverview(overviewData);
@@ -51,7 +61,7 @@ export default function DashboardOverviewPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [token]);
+  }, [token, tenantHost]);
 
   useEffect(() => {
     loadData();
@@ -62,10 +72,15 @@ export default function DashboardOverviewPage() {
     loadData();
   };
 
-  const totalFleet = overview?.fleet_total || vehicles.length || 5;
+  const totalFleet = overview?.fleet_total ?? vehicles.length;
   const availableFleet = overview?.fleet_available ?? vehicles.filter(v => v.status === "available").length;
   const rentedFleet = overview?.fleet_rented ?? 0;
   const maintenanceFleet = overview?.fleet_in_maintenance ?? 0;
+  const monthlyRevenue = overview?.revenue_this_month !== undefined ? Number(overview.revenue_this_month) : 0;
+  const activeBookings = overview?.bookings_active ?? recentBookings.length;
+  const pendingBookings = overview?.bookings_pending ?? 0;
+  const carpoolRoutes = overview?.carpool_active_rides ?? 0;
+  const carpoolRequests = overview?.carpool_total_requests ?? 0;
 
   return (
     <div className="space-y-8">
@@ -76,8 +91,8 @@ export default function DashboardOverviewPage() {
             <h1 className="text-2xl font-bold tracking-tight dark:text-white text-slate-900 md:text-3xl">
               Operations Control
             </h1>
-            <span className="rounded-md border dark:border-white/[0.08] border-slate-200 dark:bg-white/[0.04] bg-slate-100 px-2 py-0.5 text-[11px] font-mono dark:text-zinc-400 text-slate-600">
-              Live MVP
+            <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-mono text-emerald-500 font-medium">
+              {cleanDomain}
             </span>
           </div>
           <p className="mt-1 text-sm dark:text-zinc-400 text-slate-500">
@@ -97,7 +112,7 @@ export default function DashboardOverviewPage() {
             Refresh
           </Button>
 
-          <Link href="/dashboard/theme">
+          <Link href={`/dashboard/theme?tenant=${cleanDomain}`}>
             <Button
               size="sm"
               variant="outline"
@@ -108,14 +123,54 @@ export default function DashboardOverviewPage() {
             </Button>
           </Link>
 
-          <Link href="/" target="_blank">
+          <a href={storefrontUrl} target="_blank" rel="noopener noreferrer">
             <Button size="sm" className="bg-primary text-black font-semibold hover:bg-primary/90">
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
               View Storefront
             </Button>
-          </Link>
+          </a>
         </div>
       </div>
+
+      {/* Host Vehicle Approvals Alert Banner */}
+      {(() => {
+        const pendingHost = vehicles.filter(
+          (v) => v.status === "pending_approval" || v.is_verified === false
+        );
+        if (pendingHost.length === 0) return null;
+
+        return (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 rounded-2xl border dark:border-amber-500/30 border-amber-300 dark:bg-amber-500/10 bg-amber-50 p-4 dark:text-amber-200 text-amber-950 shadow-md dark:shadow-amber-500/5 shadow-amber-500/10">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl dark:bg-amber-500/20 bg-amber-100 text-amber-600 dark:text-amber-400 shrink-0 border dark:border-amber-500/30 border-amber-300">
+                <ShieldCheck className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-sm dark:text-white text-slate-900">
+                    {pendingHost.length} Host Vehicle Application{pendingHost.length > 1 ? "s" : ""} Awaiting Review &amp; Approval
+                  </p>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full dark:bg-amber-500/20 bg-amber-200 dark:text-amber-300 text-amber-900 border dark:border-amber-500/30 border-amber-300 uppercase">
+                    Review Required
+                  </span>
+                </div>
+                <p className="text-xs dark:text-amber-300/80 text-amber-900/80 mt-0.5">
+                  Vehicles submitted by owners on your public portal require your verification and approval before going live in the fleet.
+                </p>
+              </div>
+            </div>
+            <Link href={`/dashboard/fleet?status=pending_approval&tenant=${cleanDomain}`}>
+              <Button
+                size="sm"
+                className="bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs shrink-0 shadow-sm"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
+                Review Submissions ({pendingHost.length})
+              </Button>
+            </Link>
+          </div>
+        );
+      })()}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -137,26 +192,26 @@ export default function DashboardOverviewPage() {
             />
             <MetricCard
               title="Monthly Revenue"
-              value={`$${Number(overview?.revenue_this_month || 2883.60).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+              value={`$${monthlyRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
               subtitle="From verified bookings"
               icon={DollarSign}
-              trend={{ value: "+14.2%", isPositive: true }}
+              trend={{ value: "+0.0%", isPositive: true }}
             />
             <MetricCard
               title="Active Bookings"
-              value={recentBookings.length || 1}
-              subtitle="1 pending check-in today"
+              value={activeBookings}
+              subtitle={`${pendingBookings} pending check-in`}
               icon={CalendarCheck}
             />
             <MetricCard
               title="Carpool Routes"
-              value={overview?.carpool_active_rides ?? 5}
-              subtitle={`${overview?.carpool_total_requests ?? 1} seat bookings`}
+              value={carpoolRoutes}
+              subtitle={`${carpoolRequests} seat requests`}
               icon={Route}
             />
             <MetricCard
               title="Fleet Health"
-              value={`${totalFleet - maintenanceFleet}/${totalFleet}`}
+              value={`${totalFleet - maintenanceFleet}/${totalFleet || 1}`}
               subtitle="0 overdue maintenance jobs"
               icon={Wrench}
             />
@@ -178,7 +233,7 @@ export default function DashboardOverviewPage() {
               </p>
             </div>
             <Link
-              href="/dashboard/bookings"
+              href={`/dashboard/bookings?tenant=${cleanDomain}`}
               className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
             >
               <span>View all</span>
@@ -297,7 +352,7 @@ export default function DashboardOverviewPage() {
               </div>
 
               <div className="pt-2 border-t dark:border-white/[0.08] border-slate-100">
-                <Link href="/dashboard/fleet">
+                <Link href={`/dashboard/fleet?tenant=${cleanDomain}`}>
                   <Button variant="outline" size="sm" className="w-full text-xs dark:border-white/[0.08] border-slate-200 dark:hover:bg-white/[0.05] hover:bg-slate-100 dark:text-zinc-300 text-slate-700">
                     Manage Fleet Inventory
                   </Button>
@@ -314,7 +369,7 @@ export default function DashboardOverviewPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Link href="/dashboard/fleet" className="block">
+              <Link href={`/dashboard/fleet?tenant=${cleanDomain}`} className="block">
                 <div className="flex items-center justify-between p-2.5 rounded-lg border dark:border-white/[0.06] border-slate-200 dark:bg-white/[0.02] bg-slate-50 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors">
                   <div className="flex items-center gap-2.5">
                     <Car className="h-4 w-4 text-primary" />
@@ -324,7 +379,7 @@ export default function DashboardOverviewPage() {
                 </div>
               </Link>
 
-              <Link href="/dashboard/carpool" className="block">
+              <Link href={`/dashboard/carpool?tenant=${cleanDomain}`} className="block">
                 <div className="flex items-center justify-between p-2.5 rounded-lg border dark:border-white/[0.06] border-slate-200 dark:bg-white/[0.02] bg-slate-50 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors">
                   <div className="flex items-center gap-2.5">
                     <Route className="h-4 w-4 text-emerald-500" />
@@ -334,7 +389,7 @@ export default function DashboardOverviewPage() {
                 </div>
               </Link>
 
-              <Link href="/dashboard/theme" className="block">
+              <Link href={`/dashboard/theme?tenant=${cleanDomain}`} className="block">
                 <div className="flex items-center justify-between p-2.5 rounded-lg border dark:border-white/[0.06] border-slate-200 dark:bg-white/[0.02] bg-slate-50 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors">
                   <div className="flex items-center gap-2.5">
                     <Palette className="h-4 w-4 text-purple-500" />
@@ -344,7 +399,7 @@ export default function DashboardOverviewPage() {
                 </div>
               </Link>
 
-              <Link href="/dashboard/customers" className="block">
+              <Link href={`/dashboard/customers?tenant=${cleanDomain}`} className="block">
                 <div className="flex items-center justify-between p-2.5 rounded-lg border dark:border-white/[0.06] border-slate-200 dark:bg-white/[0.02] bg-slate-50 dark:hover:bg-white/[0.06] hover:bg-slate-100 transition-colors">
                   <div className="flex items-center gap-2.5">
                     <ShieldCheck className="h-4 w-4 text-emerald-500" />

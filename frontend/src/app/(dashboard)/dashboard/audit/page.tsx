@@ -19,22 +19,30 @@ import { useAuth } from "@/lib/auth/AuthContext";
 import { fetchAuditLogs, AuditLogItem } from "@/lib/api/audit";
 
 export default function AuditTrailPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const [logs, setLogs] = useState<AuditLogItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<AuditLogItem | null>(null);
 
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
+
   const loadLogs = useCallback(async () => {
     try {
-      const data = await fetchAuditLogs(token || undefined);
+      const data = await fetchAuditLogs(token || undefined, tenantHost);
       setLogs(data);
     } catch (err) {
       console.error("Failed to load audit logs:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, tenantHost]);
 
   useEffect(() => {
     loadLogs();

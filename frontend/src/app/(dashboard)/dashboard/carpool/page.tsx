@@ -50,8 +50,16 @@ import { CarpoolRide, CarpoolBookingRequest, CarpoolAlertSubscription } from "@/
 import { cn } from "@/lib/utils";
 
 export default function CarpoolDashboardPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const { isLight } = useDashboardTheme();
+
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
 
   const [activeTab, setActiveTab] = useState<"rides" | "requests" | "subscriptions">("rides");
 
@@ -92,9 +100,9 @@ export default function CarpoolDashboardPage() {
   const loadData = useCallback(async () => {
     try {
       const [ridesData, requestsData, subsData] = await Promise.all([
-        getCarpoolRides({ all: true }, token || undefined).catch(() => []),
-        getCarpoolRequests({}, token || undefined).catch(() => []),
-        getCarpoolSubscriptions(token || undefined).catch(() => []),
+        getCarpoolRides({ all: true }, token || undefined, tenantHost).catch(() => []),
+        getCarpoolRequests({}, token || undefined, tenantHost).catch(() => []),
+        getCarpoolSubscriptions(token || undefined, tenantHost).catch(() => []),
       ]);
       setRides(ridesData);
       setRequests(requestsData);
@@ -105,7 +113,7 @@ export default function CarpoolDashboardPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [token]);
+  }, [token, tenantHost]);
 
   useEffect(() => {
     loadData();
@@ -123,10 +131,10 @@ export default function CarpoolDashboardPage() {
   ) => {
     setActionLoadingId(reqId);
     try {
-      const updated = await updateCarpoolRequestStatus(reqId, newStatus, token || undefined);
+      const updated = await updateCarpoolRequestStatus(reqId, newStatus, token || undefined, tenantHost);
       setRequests((prev) => prev.map((r) => (r.id === reqId ? { ...r, status: updated.status } : r)));
       // Re-fetch rides to sync seat counts
-      const freshRides = await getCarpoolRides({ all: true }, token || undefined);
+      const freshRides = await getCarpoolRides({ all: true }, token || undefined, tenantHost);
       setRides(freshRides);
     } catch (err) {
       console.error("Error updating request status:", err);
@@ -142,7 +150,7 @@ export default function CarpoolDashboardPage() {
   ) => {
     setActionLoadingId(rideId);
     try {
-      const updated = await updateCarpoolRideStatus(rideId, newStatus, token || undefined);
+      const updated = await updateCarpoolRideStatus(rideId, newStatus, token || undefined, tenantHost);
       setRides((prev) => prev.map((r) => (r.id === rideId ? { ...r, status: updated.status } : r)));
     } catch (err) {
       console.error("Error updating ride status:", err);
@@ -156,7 +164,7 @@ export default function CarpoolDashboardPage() {
     if (!confirm("Are you sure you want to delete this carpool departure?")) return;
     setActionLoadingId(rideId);
     try {
-      await deleteCarpoolRide(rideId, token || undefined);
+      await deleteCarpoolRide(rideId, token || undefined, tenantHost);
       setRides((prev) => prev.filter((r) => r.id !== rideId));
     } catch (err) {
       console.error("Error deleting ride:", err);
@@ -195,7 +203,8 @@ export default function CarpoolDashboardPage() {
           features: featArray,
           notes: publishForm.notes.trim(),
         },
-        token || undefined
+        token || undefined,
+        tenantHost
       );
 
       setRides((prev) => [created, ...prev]);

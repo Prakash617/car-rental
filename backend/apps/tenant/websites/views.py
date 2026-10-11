@@ -1,5 +1,10 @@
+import os
+import uuid
+from django.conf import settings
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, status
+from rest_framework.exceptions import ValidationError
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.views import APIView
 
 from common.permissions.tenant import IsTenantOwnerOrAdmin, IsTenantStaffOrAbove
@@ -57,6 +62,89 @@ class ManageWebsiteConfigView(StandardResponseMixin, APIView):
         return self.success_response(
             data=serializer.data,
             message="Website branding and theme updated successfully",
+        )
+
+
+class UploadWebsiteAssetView(StandardResponseMixin, APIView):
+    """
+    Endpoint for uploading branding assets such as favicon (.ico, .png, .svg),
+    brand logo, or OpenGraph social share card.
+    Directly persists the uploaded relative URL to WebsiteConfig.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsTenantStaffOrAbove]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, *args, **kwargs):
+        uploaded_file = (
+            request.FILES.get("file")
+            or request.FILES.get("favicon")
+            or request.FILES.get("logo")
+            or request.FILES.get("image")
+        )
+        if not uploaded_file:
+            raise ValidationError({"file": "Please select a file to upload."})
+
+        # Max size: 10MB
+        max_size = 10 * 1024 * 1024
+        if uploaded_file.size > max_size:
+            raise ValidationError({"file": "File size exceeds the 10 MB limit."})
+
+        orig_name = uploaded_file.name or "asset.png"
+        ext = os.path.splitext(orig_name)[1].lower()
+        allowed_exts = [".ico", ".png", ".svg", ".webp", ".jpg", ".jpeg"]
+        if ext not in allowed_exts:
+            raise ValidationError(
+                {"file": f"Unsupported format '{ext}'. Allowed: {', '.join(allowed_exts)}"}
+            )
+
+        asset_type = request.data.get("asset_type", "favicon").strip().lower()
+        if asset_type not in ["favicon", "logo", "og_image"]:
+            asset_type = "favicon"
+
+        tenant = getattr(request, "tenant", None)
+        schema_name = getattr(tenant, "schema_name", "general") if tenant else "general"
+        clean_schema = "".join(c for c in schema_name if c.isalnum() or c in ("_", "-")) or "general"
+
+        relative_dir = os.path.join("branding", clean_schema)
+        full_dir = os.path.join(settings.MEDIA_ROOT, relative_dir)
+        os.makedirs(full_dir, exist_ok=True)
+
+        file_id = uuid.uuid4().hex[:12]
+        filename = f"{asset_type}_{file_id}{ext}"
+        full_path = os.path.join(full_dir, filename)
+
+        with open(full_path, "wb+") as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        media_url_base = (
+            settings.MEDIA_URL if settings.MEDIA_URL.endswith("/") else f"{settings.MEDIA_URL}/"
+        )
+        relative_url = f"{media_url_base}branding/{clean_schema}/{filename}"
+
+        config = WebsiteConfig.get_solo()
+        if asset_type == "favicon":
+            config.favicon_url = relative_url
+            config.save(update_fields=["favicon_url", "updated_at"])
+        elif asset_type == "logo":
+            config.logo_url = relative_url
+            config.save(update_fields=["logo_url", "updated_at"])
+        elif asset_type == "og_image":
+            config.og_image_url = relative_url
+            config.save(update_fields=["og_image_url", "updated_at"])
+
+        return self.success_response(
+            data={
+                "url": relative_url,
+                "asset_type": asset_type,
+                "filename": filename,
+                "size": uploaded_file.size,
+                "favicon_url": config.favicon_url,
+                "logo_url": config.logo_url,
+            },
+            message=f"{asset_type.capitalize()} uploaded and updated successfully.",
+            status_code=status.HTTP_201_CREATED,
         )
 
 

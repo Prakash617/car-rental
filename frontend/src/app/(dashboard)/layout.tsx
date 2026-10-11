@@ -18,8 +18,8 @@ const FALLBACK_BRANDING: TenantBranding = {
   primary_color: "#D4AF37",
   accent_color: "#F59E0B",
   font_heading: "serif",
-  currency: "USD",
-  timezone: "UTC",
+  currency: "Rs.",
+  timezone: "Asia/Kathmandu",
   active_theme: "luxury",
   hero_title: "Automotive Mobility",
   hero_subtitle: "Concierge Fleet Operations",
@@ -34,17 +34,51 @@ function DashboardContent({ children }: { children: React.ReactNode }) {
 
   // Dynamically load the current tenant's branding & website CMS configuration
   useEffect(() => {
-    apiFetch<TenantBranding>("/website/config/")
+    let activeHost = tenantDomain;
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search).get("tenant");
+      if (p) activeHost = p;
+    }
+
+    const hostHeader = activeHost ? `${activeHost.replace(/:\d+$/, "")}:3000` : undefined;
+    const cleanSub = activeHost ? activeHost.split(".")[0] : "superbang";
+    const defaultName = cleanSub.includes("superbang") ? "SuperBang" : "FleetCore";
+
+    if (typeof document !== "undefined") {
+      document.title = `${defaultName} | Concierge OS Dashboard`;
+    }
+
+    apiFetch<TenantBranding>("/website/config/", { tenantHost: hostHeader })
       .then((data) => {
-        if (data && data.name) {
+        if (data && (data.name || data.website_title)) {
           setBranding((prev) => ({ ...prev, ...data }));
+          if (typeof document !== "undefined") {
+            const titleName = data.website_title || data.name;
+            document.title = `${titleName} | Concierge OS Dashboard`;
+
+            if (data.favicon_url) {
+              let iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null;
+              if (!iconLink) {
+                iconLink = document.createElement("link");
+                iconLink.rel = "shortcut icon";
+                document.head.appendChild(iconLink);
+              }
+              iconLink.href = data.favicon_url;
+            }
+          }
         }
       })
       .catch(() => {
-        if (tenantDomain) {
-          const cleanSub = tenantDomain.split(".")[0];
+        if (activeHost) {
           const name = cleanSub.charAt(0).toUpperCase() + cleanSub.slice(1) + " Fleet";
-          setBranding((prev) => ({ ...prev, name }));
+          setBranding((prev) => ({
+            ...prev,
+            name,
+            primary_color: cleanSub.includes("superbang") ? "#e11d2e" : prev.primary_color,
+          }));
+          if (typeof document !== "undefined") {
+            document.title = `${name} | Concierge OS Dashboard`;
+          }
         }
       });
   }, [isAuthenticated, tenantDomain]);

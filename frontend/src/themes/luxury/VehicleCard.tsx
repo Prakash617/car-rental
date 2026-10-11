@@ -80,13 +80,13 @@ export function LuxuryVehicleCard({ vehicle, branding, onSelect }: VehicleCardPr
             <span className="text-xs text-slate-400 font-light block">Daily Rate</span>
             <div className="flex items-baseline gap-1">
               <span className="text-2xl font-mono tabular-nums font-bold text-slate-100">
-                {branding.currency || "USD"} {vehicle.daily_rate}
+                {branding.currency || "Rs."} {vehicle.daily_rate}
               </span>
               <span className="text-xs text-slate-500 font-light">/ day</span>
             </div>
             {vehicle.deposit_amount && (
               <span className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
-                <Shield className="w-2.5 h-2.5" /> Deposit: {branding.currency || "USD"} {vehicle.deposit_amount}
+                <Shield className="w-2.5 h-2.5" /> Deposit: {branding.currency || "Rs."} {vehicle.deposit_amount}
               </span>
             )}
           </div>

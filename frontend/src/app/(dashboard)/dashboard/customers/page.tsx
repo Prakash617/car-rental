@@ -19,7 +19,7 @@ import { Customer } from "@/types";
 import { Plus, ShieldCheck, ShieldAlert, FileText, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 
 export default function CustomersDirectoryPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,6 +28,14 @@ export default function CustomersDirectoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
 
   const [customerForm, setCustomerForm] = useState<CreateCustomerPayload>({
     first_name: "",
@@ -42,14 +50,14 @@ export default function CustomersDirectoryPage() {
 
   const loadCustomers = useCallback(async () => {
     try {
-      const data = await getCustomers(token || undefined);
+      const data = await getCustomers(token || undefined, tenantHost);
       setCustomers(data);
     } catch (err) {
       console.error("Failed to load customers:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, tenantHost]);
 
   useEffect(() => {
     loadCustomers();

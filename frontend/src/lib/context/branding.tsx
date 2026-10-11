@@ -42,6 +42,37 @@ export function BrandingProvider({
     setEffectiveBranding(current);
   }, [branding]);
 
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    // Apply website title to browser tab if not customized by subpage
+    const title =
+      effectiveBranding.website_title ||
+      effectiveBranding.seo_meta_title ||
+      (effectiveBranding.name ? `${effectiveBranding.name} | Luxury & Standard Car Rental` : "");
+    if (title) {
+      const cur = document.title;
+      if (
+        !cur ||
+        cur.includes("Apex Luxury Concierge | Multi-Tenant Car Rental SaaS") ||
+        cur === "Apex Rentals"
+      ) {
+        document.title = title;
+      }
+    }
+
+    // Apply or update favicon icon link
+    if (effectiveBranding.favicon_url) {
+      let iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null;
+      if (!iconLink) {
+        iconLink = document.createElement("link");
+        iconLink.rel = "shortcut icon";
+        document.head.appendChild(iconLink);
+      }
+      iconLink.href = effectiveBranding.favicon_url;
+    }
+  }, [effectiveBranding]);
+
   return (
     <BrandingContext.Provider value={effectiveBranding}>
       {children}
@@ -55,4 +86,35 @@ export function useBranding(): TenantBranding {
     throw new Error("useBranding must be used within a BrandingProvider");
   }
   return ctx;
+}
+
+/**
+ * Hook to set a subpage tab title while preserving tenant branding and favicon
+ */
+export function useStorefrontTitle(pageTitle?: string) {
+  const branding = useBranding();
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const baseTitle =
+      branding.website_title ||
+      branding.seo_meta_title ||
+      (branding.name ? `${branding.name} | Luxury & Standard Car Rental` : "Car Rental");
+
+    if (pageTitle) {
+      document.title = `${pageTitle} | ${branding.name || baseTitle}`;
+    } else {
+      document.title = baseTitle;
+    }
+
+    if (branding.favicon_url) {
+      let iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null;
+      if (!iconLink) {
+        iconLink = document.createElement("link");
+        iconLink.rel = "shortcut icon";
+        document.head.appendChild(iconLink);
+      }
+      iconLink.href = branding.favicon_url;
+    }
+  }, [pageTitle, branding]);
 }

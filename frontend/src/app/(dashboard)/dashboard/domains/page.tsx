@@ -27,16 +27,24 @@ import {
 } from "@/lib/api/domains";
 
 export default function CustomDomainsPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const [domains, setDomains] = useState<TenantDomain[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [newDomain, setNewDomain] = useState("");
 
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
+
   const loadDomains = useCallback(async () => {
     try {
-      const data = await fetchTenantDomains(token || undefined);
+      const data = await fetchTenantDomains(token || undefined, tenantHost);
       setDomains(data);
     } catch (err) {
       console.error("Failed to load domains:", err);
@@ -44,7 +52,7 @@ export default function CustomDomainsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, tenantHost]);
 
   useEffect(() => {
     loadDomains();
@@ -55,7 +63,7 @@ export default function CustomDomainsPage() {
     if (!newDomain) return;
     setIsProcessing(true);
     try {
-      const created = await addCustomDomain(newDomain.trim(), token || undefined);
+      const created = await addCustomDomain(newDomain.trim(), token || undefined, tenantHost);
       setDomains((prev) => [...prev, created]);
       setShowAddModal(false);
       setNewDomain("");
@@ -73,7 +81,7 @@ export default function CustomDomainsPage() {
   const handleVerify = async (domainId: string) => {
     setIsProcessing(true);
     try {
-      const updated = await verifyCustomDomain(domainId, token || undefined);
+      const updated = await verifyCustomDomain(domainId, token || undefined, tenantHost);
       setDomains((prev) => prev.map((d) => (d.id === domainId ? updated : d)));
       toast.success("Domain verified!", {
         description: `Domain '${updated.domain}' verified with active Let's Encrypt TLS 1.3 certificate!`,

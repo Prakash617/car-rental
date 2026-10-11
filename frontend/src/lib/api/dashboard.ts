@@ -3,10 +3,13 @@ import { AuthSession, Customer, DashboardOverview, TenantBranding, Vehicle, Vehi
 
 export interface UpdateThemePayload {
   active_theme?: string;
+  name?: string;
+  website_title?: string;
   primary_color?: string;
   accent_color?: string;
   font_heading?: string;
   logo_url?: string;
+  favicon_url?: string;
   support_email?: string;
   support_phone?: string;
   hero_title?: string;
@@ -15,6 +18,7 @@ export interface UpdateThemePayload {
   seo_meta_description?: string;
   seo_keywords?: string;
   og_image_url?: string;
+  currency?: string;
 }
 
 export interface FAQItem {
@@ -63,14 +67,18 @@ export interface CustomPagePayload {
   * Authenticate staff or admin user for tenant management operations
   */
 export async function loginUser(
-  email: string,
+  email?: string,
   password?: string,
   tenantHost?: string,
-  otp?: string
+  otp?: string,
+  googleTokens?: { access_token?: string; id_token?: string }
 ): Promise<AuthSession> {
-  const payload: Record<string, string> = { email: email.trim().toLowerCase() };
+  const payload: Record<string, string> = {};
+  if (email) payload.email = email.trim().toLowerCase();
   if (password) payload.password = password;
   if (otp) payload.otp = otp;
+  if (googleTokens?.access_token) payload.access_token = googleTokens.access_token;
+  if (googleTokens?.id_token) payload.id_token = googleTokens.id_token;
 
   return apiFetch<AuthSession>("/auth/login/", {
     method: "POST",
@@ -187,6 +195,36 @@ export async function updateTenantThemeConfig(
     token,
     tenantHost,
     body: JSON.stringify(payload),
+  });
+}
+
+export interface UploadAssetResponse {
+  url: string;
+  asset_type: "favicon" | "logo" | "og_image";
+  filename: string;
+  size: number;
+  favicon_url?: string;
+  logo_url?: string;
+}
+
+/**
+ * Upload branding asset such as website favicon, logo, or OG image
+ */
+export async function uploadWebsiteAsset(
+  file: File,
+  assetType: "favicon" | "logo" | "og_image" = "favicon",
+  token?: string,
+  tenantHost?: string
+): Promise<UploadAssetResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("asset_type", assetType);
+
+  return apiFetch<UploadAssetResponse>("/dashboard/website/upload-asset/", {
+    method: "POST",
+    token,
+    tenantHost,
+    body: formData,
   });
 }
 

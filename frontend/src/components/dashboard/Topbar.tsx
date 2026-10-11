@@ -9,14 +9,14 @@ import {
   ShieldCheck,
   LogOut,
   User,
-  Calendar,
-  Users,
   HelpCircle,
   Car,
-  Key,
   ChevronDown,
   Sun,
   Moon,
+  Settings,
+  Palette,
+  Globe,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { useBranding } from "@/lib/context/branding";
@@ -26,7 +26,7 @@ export function Topbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { user, logout, tenantDomain } = useAuth();
+  const { user, logout, tenantDomain, role } = useAuth();
   const { theme, toggleTheme, isLight } = useDashboardTheme();
 
   useEffect(() => {
@@ -42,35 +42,66 @@ export function Topbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  let brandingName = "FLEETCORE";
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+
+  const rawDomain =
+    queryTenant ||
+    tenantDomain ||
+    (typeof window !== "undefined" &&
+    window.location.host.includes(".localhost")
+      ? window.location.host
+      : "superbang.localhost");
+  const cleanDomain = rawDomain.replace(/:\d+$/, "");
+  const storefrontUrl = `http://${cleanDomain}:3000`;
+
+  const isSuperbang = cleanDomain.includes("superbang");
+
+  const displayName = user
+    ? `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email.split("@")[0]
+    : isSuperbang
+    ? "SuperBang Admin"
+    : "Fleet Admin";
+
+  const displayEmail = user?.email || (isSuperbang ? "superbang617@gmail.com" : `admin@${cleanDomain}`);
+
+  const displayRole =
+    role === "owner"
+      ? "Company Owner"
+      : role === "admin"
+      ? "Fleet Admin"
+      : role === "manager"
+      ? "Fleet Manager"
+      : isSuperbang
+      ? "Company Owner"
+      : "Operations Staff";
+
+  const displayInitials =
+    user?.first_name && user?.last_name
+      ? `${user.first_name[0]}${user.last_name[0]}`.toUpperCase()
+      : isSuperbang
+      ? "SB"
+      : displayName.slice(0, 2).toUpperCase();
+
+  let brandingName = isSuperbang ? "SUPERBANG" : "FLEETCORE";
   try {
     const branding = useBranding();
     if (branding?.name) {
       brandingName = branding.name;
     }
   } catch {
-    if (tenantDomain) {
-      const clean = tenantDomain.split(".")[0];
-      brandingName = clean.toUpperCase() + " FLEET";
-    }
+    const clean = cleanDomain.split(".")[0];
+    brandingName = clean.toUpperCase() + " FLEET";
   }
 
-  const rawDomain =
-    tenantDomain ||
-    (typeof window !== "undefined" &&
-    window.location.host.includes(".localhost")
-      ? window.location.host
-      : "apex.localhost");
-  const cleanDomain = rawDomain.replace(/:\d+$/, "");
-  const storefrontUrl = `http://${cleanDomain}:3000`;
-
-  const clientDropdownItems = [
-    { label: "Profile", href: "/client", icon: User },
-    { label: "My Bookings", href: "/client", icon: Calendar },
-    { label: "Carpool", href: "/carpool", icon: Users },
-    { label: "My Inquiries", href: "/contact", icon: HelpCircle },
-    { label: "My Vehicles", href: "/list-your-car", icon: Car },
-    { label: "Change Password", href: "/client", icon: Key },
+  const dashboardDropdownItems = [
+    { label: "Operations & Branches", href: `/dashboard/settings?tenant=${cleanDomain}`, icon: Settings },
+    { label: "Theme & Branding", href: `/dashboard/theme?tenant=${cleanDomain}`, icon: Palette },
+    { label: "SEO & Social Sharing", href: `/dashboard/seo?tenant=${cleanDomain}`, icon: Globe },
+    { label: "Fleet Inventory", href: `/dashboard/fleet?tenant=${cleanDomain}`, icon: Car },
+    { label: "Customer Inquiries & FAQ", href: `/dashboard/faq?tenant=${cleanDomain}`, icon: HelpCircle },
   ];
 
   return (
@@ -92,7 +123,7 @@ export function Topbar() {
       <div className="hidden items-center gap-3 md:flex">
         <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-500 font-medium font-mono">
           <ShieldCheck className="h-3.5 w-3.5" />
-          <span>{tenantDomain ? `${tenantDomain}` : "PostgreSQL Schema-Isolated Tenant"}</span>
+          <span>{`${cleanDomain} (tenant_${cleanDomain.split(".")[0]})`}</span>
         </div>
       </div>
 
@@ -133,14 +164,14 @@ export function Topbar() {
             className="flex items-center gap-2 p-1.5 sm:px-2.5 rounded-lg border dark:border-white/[0.08] border-slate-200 dark:hover:border-white/20 hover:border-slate-300 dark:bg-white/[0.03] bg-slate-100/60 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-all text-left shadow-2xs"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e11d2e]/15 border border-[#e11d2e]/30 text-[#e11d2e] text-xs font-bold font-mono">
-              {user?.first_name?.[0] || "J"}
+              {displayInitials}
             </div>
             <div className="hidden sm:block text-left mr-1">
               <span className="block text-xs font-semibold dark:text-white text-slate-900 leading-tight">
-                {user ? `${user.first_name} ${user.last_name}` : "Julian Vane"}
+                {displayName}
               </span>
               <span className="block text-[10px] dark:text-zinc-400 text-slate-500 uppercase tracking-wider font-mono">
-                Staff Concierge
+                {displayRole}
               </span>
             </div>
             <ChevronDown
@@ -155,15 +186,15 @@ export function Topbar() {
             <div className="absolute right-0 mt-2 w-64 rounded-xl border dark:border-white/10 border-slate-200 dark:bg-zinc-900/95 bg-white p-1.5 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in zoom-in-95 duration-100">
               <div className="px-3 py-2.5 border-b dark:border-white/[0.08] border-slate-100">
                 <p className="text-xs font-bold dark:text-white text-slate-900 leading-tight truncate">
-                  {user ? `${user.first_name} ${user.last_name}` : "Julian Vane"}
+                  {displayName}
                 </p>
-                <p className="text-[11px] text-zinc-400 truncate mt-0.5 font-mono">
-                  {user?.email || "concierge@apex-fleet.com"}
+                <p className="text-[11px] dark:text-zinc-400 text-slate-500 truncate mt-0.5 font-mono">
+                  {displayEmail}
                 </p>
               </div>
 
               <div className="py-1">
-                {clientDropdownItems.map((item) => {
+                {dashboardDropdownItems.map((item) => {
                   const Icon = item.icon;
                   return (
                     <Link
@@ -204,42 +235,42 @@ export function Topbar() {
             Dashboard Navigation
           </div>
           <Link
-            href="/dashboard"
+            href={`/dashboard?tenant=${cleanDomain}`}
             onClick={() => setMobileOpen(false)}
             className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Overview
           </Link>
           <Link
-            href="/dashboard/fleet"
+            href={`/dashboard/fleet?tenant=${cleanDomain}`}
             onClick={() => setMobileOpen(false)}
             className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Fleet Inventory
           </Link>
           <Link
-            href="/dashboard/bookings"
+            href={`/dashboard/bookings?tenant=${cleanDomain}`}
             onClick={() => setMobileOpen(false)}
             className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Reservations
           </Link>
           <Link
-            href="/dashboard/carpool"
+            href={`/dashboard/carpool?tenant=${cleanDomain}`}
             onClick={() => setMobileOpen(false)}
             className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Carpool &amp; Rides
           </Link>
           <Link
-            href="/dashboard/customers"
+            href={`/dashboard/customers?tenant=${cleanDomain}`}
             onClick={() => setMobileOpen(false)}
             className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
             Customer Directory
           </Link>
           <Link
-            href="/dashboard/theme"
+            href={`/dashboard/theme?tenant=${cleanDomain}`}
             onClick={() => setMobileOpen(false)}
             className="px-3 py-2 text-sm dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 rounded-md dark:hover:bg-white/[0.05] hover:bg-slate-100"
           >
@@ -249,9 +280,9 @@ export function Topbar() {
           <div className="border-t dark:border-white/[0.08] border-slate-200 my-1" />
 
           <div className="text-[11px] font-semibold uppercase tracking-wider dark:text-zinc-500 text-slate-400 px-3 pt-1">
-            Account &amp; Client Portal
+            Company Administration
           </div>
-          {clientDropdownItems.map((item) => {
+          {dashboardDropdownItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link
@@ -268,7 +299,7 @@ export function Topbar() {
 
           <div className="pt-2 border-t dark:border-white/[0.08] border-slate-200 flex justify-between items-center">
             <a
-              href={`http://${(tenantDomain || "apex.localhost").replace(/:\d+$/, "")}:3000`}
+              href={storefrontUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-primary flex items-center gap-1"

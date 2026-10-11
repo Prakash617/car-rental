@@ -53,9 +53,13 @@ import {
 type ActiveTab = "branches" | "categories" | "transmissions";
 
 function SettingsPageContent() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as ActiveTab) || "branches";
+  const tenantParam = searchParams.get("tenant");
+  const activeTenant = tenantParam || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
 
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
@@ -106,9 +110,9 @@ function SettingsPageContent() {
     setIsLoading(true);
     try {
       const [branchData, catData, transData] = await Promise.all([
-        fetchBranches().catch(() => []),
-        fetchCategories().catch(() => []),
-        fetchTransmissions().catch(() => []),
+        fetchBranches(token || undefined, tenantHost).catch(() => []),
+        fetchCategories(tenantHost).catch(() => []),
+        fetchTransmissions(tenantHost).catch(() => []),
       ]);
       setBranches(branchData);
       setCategories(catData);
@@ -119,7 +123,7 @@ function SettingsPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [token, tenantHost]);
 
   useEffect(() => {
     loadData();

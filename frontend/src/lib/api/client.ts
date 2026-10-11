@@ -83,9 +83,19 @@ export async function apiFetch<T>(endpoint: string, options: RequestOptions = {}
     if (cleanHost === "localhost" || cleanHost === "127.0.0.1") {
       const urlParams = new URLSearchParams(window.location.search);
       const tenantParam = urlParams.get("tenant");
+
+      let cookieTenant: string | null = null;
+      if (typeof document !== "undefined") {
+        const match = document.cookie.match(/(?:^|;\s*)tenant_ctx=([^;]+)/);
+        if (match) cookieTenant = decodeURIComponent(match[1]);
+      }
+
       if (tenantParam) {
         const baseParam = tenantParam.replace(/:\d+$/, "");
         effectiveHost = `${baseParam}:3000`;
+      } else if (cookieTenant) {
+        const baseCookie = cookieTenant.replace(/:\d+$/, "");
+        effectiveHost = `${baseCookie}:3000`;
       } else if (storedSession?.tenant_domain) {
         const baseDomain = storedSession.tenant_domain.replace(/:\d+$/, "");
         effectiveHost = `${baseDomain}:3000`;
@@ -100,6 +110,13 @@ export async function apiFetch<T>(endpoint: string, options: RequestOptions = {}
   }
 
   const resolvedHost = effectiveHost || "apex.localhost:3000";
+
+  // Prevent sending mismatched tenant session token that would trigger 403 Forbidden
+  const storedTenant = storedSession?.tenant_domain?.replace(/:\d+$/, "");
+  const targetTenant = resolvedHost.replace(/:\d+$/, "");
+  if (!token && storedTenant && targetTenant && storedTenant !== targetTenant) {
+    authToken = undefined;
+  }
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -131,9 +148,9 @@ export async function apiFetch<T>(endpoint: string, options: RequestOptions = {}
       headers,
     });
 
-    // Check for 401 Unauthorized (token expired)
+    // Check for 401 Unauthorized or 403 Forbidden on tenant endpoints
     const isAuthRoute = path.includes("/auth/login") || path.includes("/auth/refresh");
-    if (response.status === 401 && !_retry && !isAuthRoute && typeof window !== "undefined") {
+    if ((response.status === 401 || response.status === 403) && !_retry && !isAuthRoute && typeof window !== "undefined") {
       const { refreshAccessToken } = await import("@/lib/auth/tokenManager");
       const newAccessToken = await refreshAccessToken(resolvedHost);
 

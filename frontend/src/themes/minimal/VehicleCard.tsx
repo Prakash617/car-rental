@@ -48,7 +48,7 @@ export function MinimalVehicleCard({ vehicle, branding, onSelect }: VehicleCardP
         <div className="pt-3 border-t border-zinc-900 flex items-center justify-between">
           <div>
             <span className="text-xl font-mono tabular-nums font-normal text-white">
-              {branding.currency || "USD"} {vehicle.daily_rate}
+              {branding.currency || "Rs."} {vehicle.daily_rate}
             </span>
             <span className="text-xs text-zinc-600 font-mono"> /d</span>
           </div>

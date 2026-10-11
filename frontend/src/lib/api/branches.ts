@@ -23,10 +23,23 @@ export interface CreateBranchPayload {
   email?: string;
 }
 
-export async function fetchBranches(tenantHost?: string): Promise<Branch[]> {
+export async function fetchBranches(tokenOrHost?: string, tenantHost?: string): Promise<Branch[]> {
+  let token: string | undefined;
+  let resolvedHost = tenantHost;
+  if (tokenOrHost) {
+    if (tokenOrHost.includes(".") && tokenOrHost.split(".").length === 3) {
+      token = tokenOrHost;
+    } else if (!tenantHost) {
+      resolvedHost = tokenOrHost;
+    } else {
+      token = tokenOrHost;
+    }
+  }
+
   return apiFetch<Branch[]>("/branches/", {
     method: "GET",
-    tenantHost,
+    token,
+    tenantHost: resolvedHost,
     cache: "no-store",
   });
 }

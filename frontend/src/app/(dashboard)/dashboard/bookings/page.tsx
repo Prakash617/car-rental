@@ -56,7 +56,7 @@ function getVehicleImageUrl(vehicle?: Vehicle): string | null {
 }
 
 export default function BookingsManagementPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const { isLight } = useDashboardTheme();
   let currency = "Rs.";
   try {
@@ -109,15 +109,23 @@ export default function BookingsManagementPage() {
 
   const loadBookings = useCallback(async () => {
     setIsLoading(true);
+    let queryTenant: string | null = null;
+    if (typeof window !== "undefined") {
+      queryTenant = new URLSearchParams(window.location.search).get("tenant");
+    }
+    const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+    const cleanDomain = activeTenant.replace(/:\d+$/, "");
+    const tenantHost = `${cleanDomain}:3000`;
+
     try {
-      const data = await getBookings(undefined, token || undefined);
+      const data = await getBookings(undefined, token || undefined, tenantHost);
       setBookings(data);
     } catch (err) {
       console.error("Failed to load bookings:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, tenantDomain]);
 
   useEffect(() => {
     loadBookings();

@@ -40,6 +40,7 @@ from apps.tenant.websites.views import (
     ManageCustomPageListView,
     ManageWebsiteConfigView,
     PublicWebsiteConfigView,
+    UploadWebsiteAssetView,
 )
 
 from apps.platform.domains.views import TenantDomainViewSet
@@ -89,6 +90,8 @@ urlpatterns = [
     # Website & Themes
     path("api/v1/website/config/", PublicWebsiteConfigView.as_view(), name="website_config_public"),
     path("api/v1/dashboard/theme/", ManageWebsiteConfigView.as_view(), name="dashboard_theme"),
+    path("api/v1/dashboard/website/upload-asset/", UploadWebsiteAssetView.as_view(), name="website_upload_asset"),
+    path("api/v1/dashboard/website/upload-favicon/", UploadWebsiteAssetView.as_view(), name="website_upload_favicon"),
     # FAQ (public GET, staff POST/PATCH/DELETE)
     path("api/v1/website/faq/", FAQListCreateView.as_view(), name="website_faq_list"),
     path("api/v1/dashboard/faq/<uuid:pk>/", FAQManageView.as_view(), name="dashboard_faq_manage"),

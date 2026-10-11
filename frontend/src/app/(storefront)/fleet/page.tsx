@@ -29,7 +29,7 @@ import { Select } from "@/components/ui/select";
 import { toast } from "@/components/ui/toast";
 import { Branch } from "@/lib/api/branches";
 import { Vehicle, VehicleCategory } from "@/types";
-import { useBranding } from "@/lib/context/branding";
+import { useBranding, useStorefrontTitle } from "@/lib/context/branding";
 import { getThemeDefinition, getThemeHeadingFont } from "@/lib/themes/registry";
 import { apiFetch } from "@/lib/api/client";
 import { getSafeImageUrl, DEFAULT_VEHICLE_IMAGE } from "@/lib/utils";
@@ -37,6 +37,7 @@ import { useVehiclesQuery } from "@/lib/query/hooks/useVehiclesQuery";
 import { useBranchesQuery } from "@/lib/query/hooks/useBranchesQuery";
 
 export default function PublicFleetPage() {
+  useStorefrontTitle("Available Fleet");
   const branding = useBranding();
   const theme = getThemeDefinition(branding.active_theme);
   const { FleetGrid } = theme.components;

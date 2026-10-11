@@ -18,6 +18,8 @@ class WebsiteConfigSerializer(serializers.ModelSerializer):
             "accent_color",
             "font_heading",
             "logo_url",
+            "favicon_url",
+            "website_title",
             "support_email",
             "support_phone",
             "currency",
@@ -33,16 +35,37 @@ class WebsiteConfigSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "updated_at"]
 
     def get_name(self, obj):
+        if getattr(obj, "website_title", None):
+            return obj.website_title
         tenant = getattr(self.context.get("request"), "tenant", None)
         return tenant.name if tenant else "Apex Luxury Concierge"
 
     def get_currency(self, obj):
         tenant = getattr(self.context.get("request"), "tenant", None)
-        return tenant.currency if tenant else "USD"
+        return tenant.currency if tenant and tenant.currency else "NPR"
 
     def get_timezone(self, obj):
         tenant = getattr(self.context.get("request"), "tenant", None)
-        return tenant.timezone if tenant else "UTC"
+        return tenant.timezone if tenant and tenant.timezone else "Asia/Kathmandu"
+
+    def update(self, instance, validated_data):
+        request = self.context.get("request")
+        if request and "name" in request.data and not validated_data.get("website_title"):
+            new_name = str(request.data["name"]).strip()
+            if new_name:
+                validated_data["website_title"] = new_name
+                tenant = getattr(request, "tenant", None)
+                if tenant and tenant.schema_name != "public":
+                    tenant.name = new_name
+                    tenant.save(update_fields=["name"])
+        if request and "currency" in request.data:
+            new_currency = str(request.data["currency"]).strip()
+            if new_currency:
+                tenant = getattr(request, "tenant", None)
+                if tenant and tenant.schema_name != "public":
+                    tenant.currency = new_currency
+                    tenant.save(update_fields=["currency"])
+        return super().update(instance, validated_data)
 
 
 class FAQSerializer(serializers.ModelSerializer):

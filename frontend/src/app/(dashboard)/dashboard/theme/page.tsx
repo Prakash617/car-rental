@@ -12,25 +12,62 @@ import {
   Type,
   Phone,
   Mail,
+  Globe,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  Monitor,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth/AuthContext";
-import { getManageableWebsiteConfig, updateTenantThemeConfig } from "@/lib/api/dashboard";
+import {
+  getManageableWebsiteConfig,
+  updateTenantThemeConfig,
+  uploadWebsiteAsset,
+} from "@/lib/api/dashboard";
 import { THEME_DEFINITIONS } from "@/lib/themes/registry";
 import { ThemeId } from "@/lib/themes/types";
 
 export default function ThemeCustomizerPage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
+
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
+  const isSuperbang = cleanDomain.includes("superbang");
+
   const [activeTheme, setActiveTheme] = useState<ThemeId>("luxury");
   const [persistedTheme, setPersistedTheme] = useState<ThemeId>("luxury");
-  const [primaryColor, setPrimaryColor] = useState("#D4AF37");
-  const [accentColor, setAccentColor] = useState("#B38F26");
-  const [heroTitle, setHeroTitle] = useState("The Pinnacle of Automotive Luxury");
-  const [heroSubtitle, setHeroSubtitle] = useState("Experience peerless performance and white-glove concierge mobility.");
-  const [supportEmail, setSupportEmail] = useState("concierge@apex-fleet.com");
-  const [supportPhone, setSupportPhone] = useState("+1 (800) 555-APEX");
+  const [websiteTitle, setWebsiteTitle] = useState(
+    isSuperbang ? "SuperBang Prestige Fleet & Rentals" : "Apex Luxury Concierge"
+  );
+  const [faviconUrl, setFaviconUrl] = useState<string>("");
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
+  const [primaryColor, setPrimaryColor] = useState(isSuperbang ? "#e11d2e" : "#D4AF37");
+  const [accentColor, setAccentColor] = useState(isSuperbang ? "#b01524" : "#B38F26");
+  const [heroTitle, setHeroTitle] = useState(
+    isSuperbang ? "SuperBang Prestige Fleet & Rentals" : "The Pinnacle of Automotive Luxury"
+  );
+  const [heroSubtitle, setHeroSubtitle] = useState(
+    isSuperbang
+      ? "Unmatched engineering, luxury automotive hire, and concierge service."
+      : "Experience peerless performance and white-glove concierge mobility."
+  );
+  const [supportEmail, setSupportEmail] = useState(
+    isSuperbang ? "superbang617@gmail.com" : "concierge@apex-fleet.com"
+  );
+  const [supportPhone, setSupportPhone] = useState(
+    isSuperbang ? "+977 980 000 0000" : "+1 (800) 555-APEX"
+  );
+  const [currency, setCurrency] = useState<string>("NPR");
 
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -38,16 +75,21 @@ export default function ThemeCustomizerPage() {
   useEffect(() => {
     async function loadConfig() {
       try {
-        const config = await getManageableWebsiteConfig(token || undefined);
+        const config = await getManageableWebsiteConfig(token || undefined, tenantHost);
         if (config) {
           if (config.active_theme) {
             setActiveTheme(config.active_theme as ThemeId);
             setPersistedTheme(config.active_theme as ThemeId);
           }
+          if (config.website_title) setWebsiteTitle(config.website_title);
+          if (config.favicon_url) setFaviconUrl(config.favicon_url);
           if (config.primary_color) setPrimaryColor(config.primary_color);
           if (config.accent_color) setAccentColor(config.accent_color);
+          if (config.hero_title) setHeroTitle(config.hero_title);
+          if (config.hero_subtitle) setHeroSubtitle(config.hero_subtitle);
           if (config.support_email) setSupportEmail(config.support_email);
           if (config.support_phone) setSupportPhone(config.support_phone);
+          if (config.currency) setCurrency(config.currency);
         }
       } catch (err) {
         console.error("Failed to load website config:", err);
@@ -55,7 +97,45 @@ export default function ThemeCustomizerPage() {
     }
 
     loadConfig();
-  }, [token]);
+  }, [token, tenantHost]);
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({ type: "error", message: "Favicon file size must be under 5 MB." });
+      return;
+    }
+
+    setIsUploadingFavicon(true);
+    setFeedback(null);
+    try {
+      const res = await uploadWebsiteAsset(file, "favicon", token || undefined, tenantHost);
+      const url = res.favicon_url || res.url;
+      setFaviconUrl(url);
+      setFeedback({
+        type: "success",
+        message: "Favicon uploaded and applied to website!",
+      });
+
+      // Instantly update browser tab icon
+      if (typeof document !== "undefined") {
+        let iconLink = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null;
+        if (!iconLink) {
+          iconLink = document.createElement("link");
+          iconLink.rel = "shortcut icon";
+          document.head.appendChild(iconLink);
+        }
+        iconLink.href = url;
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to upload favicon";
+      setFeedback({ type: "error", message: msg });
+    } finally {
+      setIsUploadingFavicon(false);
+    }
+  };
 
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -66,14 +146,18 @@ export default function ThemeCustomizerPage() {
       await updateTenantThemeConfig(
         {
           active_theme: activeTheme,
+          website_title: websiteTitle,
+          favicon_url: faviconUrl,
           primary_color: primaryColor,
           accent_color: accentColor,
           hero_title: heroTitle,
           hero_subtitle: heroSubtitle,
           support_email: supportEmail,
           support_phone: supportPhone,
+          currency: currency,
         },
-        token || undefined
+        token || undefined,
+        tenantHost
       );
 
       setPersistedTheme(activeTheme);
@@ -363,8 +447,194 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
           </CardFooter>
         </Card>
 
-        {/* 2. Color Palette & Identity */}
-        {/* 2. Color Palette & Identity */}
+        {/* 2. Website Identity & Browser Tab Customization */}
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <CardTitle className="text-base font-semibold dark:text-white text-slate-900 flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  <span>Website Title &amp; Favicon Branding</span>
+                </CardTitle>
+                <CardDescription className="text-xs dark:text-zinc-400 text-slate-500">
+                  Configure your company tab title and upload a custom favicon for your storefront.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-semibold w-fit">
+                <Monitor className="w-3.5 h-3.5" />
+                <span>Live Browser Tab Sync</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Interactive Browser Tab Mockup */}
+            <div className="rounded-xl border dark:border-white/[0.08] border-slate-200 bg-slate-100/80 dark:bg-zinc-900/60 p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 mb-2 flex items-center justify-between">
+                <span>Interactive Browser Tab Preview</span>
+                <span className="text-[10px] lowercase font-mono opacity-80">updates in real-time</span>
+              </div>
+
+              {/* Realistic Browser Window Bar */}
+              <div className="rounded-lg border dark:border-white/[0.1] border-slate-300 bg-white dark:bg-zinc-950 shadow-md overflow-hidden">
+                {/* Tab Bar */}
+                <div className="flex items-center px-3 pt-2 bg-slate-200/70 dark:bg-zinc-900/90 border-b dark:border-white/[0.06] border-slate-200 gap-2">
+                  <div className="flex items-center gap-1.5 mr-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
+                  </div>
+
+                  {/* Active Tab */}
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-zinc-950 rounded-t-lg border-t border-x dark:border-white/[0.1] border-slate-300 max-w-[320px] shadow-xs">
+                    {/* Favicon icon */}
+                    {faviconUrl ? (
+                      <img
+                        src={faviconUrl}
+                        alt="Favicon"
+                        className="w-4 h-4 rounded-xs object-contain shrink-0"
+                      />
+                    ) : (
+                      <div
+                        className="w-4 h-4 rounded-xs flex items-center justify-center text-[10px] font-bold text-white shrink-0"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {websiteTitle.charAt(0) || "C"}
+                      </div>
+                    )}
+                    <span className="text-xs font-medium dark:text-zinc-100 text-slate-800 truncate">
+                      {websiteTitle || "Car Rental & Chauffeur"}
+                    </span>
+                    <span className="ml-auto text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer pl-1">
+                      ×
+                    </span>
+                  </div>
+
+                  {/* New Tab Button */}
+                  <div className="text-slate-400 text-xs px-1.5 cursor-pointer">+</div>
+                </div>
+
+                {/* Address Bar */}
+                <div className="px-3 py-2 flex items-center gap-2 bg-slate-50 dark:bg-zinc-900/40 text-xs">
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white dark:bg-zinc-900 border dark:border-white/[0.08] border-slate-200 w-full text-slate-600 dark:text-zinc-300 font-mono text-[11px]">
+                    <span className="text-emerald-500">🔒</span>
+                    <span className="text-slate-400">https://</span>
+                    <span className="font-semibold text-slate-800 dark:text-zinc-100">{tenantHost}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 1. Website / Browser Tab Title */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold dark:text-zinc-200 text-slate-800 block">
+                  Website Title / Browser Tab Title
+                </label>
+                <Input
+                  value={websiteTitle}
+                  onChange={(e) => {
+                    setWebsiteTitle(e.target.value);
+                    if (typeof document !== "undefined") {
+                      document.title = `${e.target.value} | Concierge OS Dashboard`;
+                    }
+                  }}
+                  placeholder="e.g. SuperBang Prestige Fleet & Rentals"
+                  className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 dark:text-white text-slate-900 text-xs font-medium h-10"
+                />
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-normal">
+                  Displayed as the title in browser tabs, search engine results, bookmark names, and storefront metadata.
+                </p>
+              </div>
+
+              {/* 2. Favicon Uploader & Preview */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold dark:text-zinc-200 text-slate-800 block">
+                  Website Favicon
+                </label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                  {/* Current Favicon Box */}
+                  <div className="w-12 h-12 rounded-lg border-2 border-dashed dark:border-white/20 border-slate-300 bg-slate-50 dark:bg-zinc-900/80 flex items-center justify-center relative shrink-0 shadow-inner overflow-hidden">
+                    {faviconUrl ? (
+                      <img
+                        src={faviconUrl}
+                        alt="Current Favicon"
+                        className="w-8 h-8 object-contain"
+                      />
+                    ) : (
+                      <ImageIcon className="w-5 h-5 text-slate-400" />
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-1.5 w-full">
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          accept=".ico,.png,.svg,.webp,.jpg,.jpeg"
+                          onChange={handleFaviconUpload}
+                          disabled={isUploadingFavicon}
+                          className="hidden"
+                        />
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-primary hover:bg-primary/90 text-black shadow-xs transition-colors cursor-pointer">
+                          {isUploadingFavicon ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3.5 h-3.5" />
+                              Upload Favicon
+                            </>
+                          )}
+                        </span>
+                      </label>
+
+                      {faviconUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setFaviconUrl("")}
+                          className="text-xs h-8 px-2 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" />
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                      Supports .ico, .png, .svg, .webp (max 5 MB). 32×32 or 64×64 recommended.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Direct Favicon URL alternative */}
+                <div className="pt-2">
+                  <Input
+                    value={faviconUrl}
+                    onChange={(e) => setFaviconUrl(e.target.value)}
+                    placeholder="Or enter direct favicon image URL (/media/... or https://...)"
+                    className="font-mono text-[11px] dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-slate-700 dark:text-zinc-300 h-8"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="pt-3 border-t dark:border-white/[0.06] border-slate-100 flex justify-end">
+            <Button
+              type="button"
+              disabled={isSaving}
+              onClick={() => handleSave()}
+              className="bg-primary hover:bg-primary/90 text-black font-semibold text-xs h-9 px-4"
+            >
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              Save Title &amp; Favicon
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {/* 3. Color Palette & Identity */}
         <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
           <CardHeader>
             <CardTitle className="text-base font-semibold dark:text-white text-slate-900 flex items-center gap-2">
@@ -416,7 +686,54 @@ const THEME_PRESET_CONFIG: Record<ThemeId, { primaryColor: string; accentColor: 
           </CardContent>
         </Card>
 
-        {/* 3. Hero Copywriting & Support Details */}
+        {/* Currency & Financial Configuration */}
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold dark:text-white text-slate-900 flex items-center gap-2">
+              <span className="text-emerald-500 font-mono font-bold text-sm">रू / NPR</span>
+              <span>Currency &amp; Financial Format</span>
+            </CardTitle>
+            <CardDescription className="text-xs dark:text-zinc-400 text-slate-500">
+              Configure the default operational currency for vehicle daily rates, security deposits, carpool seats, and client checkouts.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="max-w-md space-y-2">
+              <label className="text-xs font-semibold dark:text-zinc-200 text-slate-800 block">
+                Primary Currency
+              </label>
+              <Select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-200 text-xs font-semibold h-10 dark:text-white text-slate-900"
+              >
+                <option value="NPR">NPR — Nepalese Rupee (Rs. / रू) [Recommended Default]</option>
+                <option value="USD">USD — United States Dollar ($)</option>
+                <option value="INR">INR — Indian Rupee (₹)</option>
+                <option value="EUR">EUR — Euro (€)</option>
+                <option value="GBP">GBP — British Pound (£)</option>
+                <option value="AUD">AUD — Australian Dollar ($)</option>
+                <option value="CAD">CAD — Canadian Dollar ($)</option>
+              </Select>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400 leading-normal">
+                Vehicles in your fleet and on the public storefront will display with this currency (e.g. <strong>Rs. 5,000 /day</strong>).
+              </p>
+            </div>
+          </CardContent>
+          <CardFooter className="pt-3 border-t dark:border-white/[0.06] border-slate-100 flex justify-end">
+            <Button
+              type="button"
+              disabled={isSaving}
+              onClick={() => handleSave()}
+              className="bg-primary hover:bg-primary/90 text-black font-semibold text-xs h-9 px-4"
+            >
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              Save Currency
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {/* 4. Hero Copywriting & Support Details */}
         <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
           <CardHeader>
             <CardTitle className="text-base font-semibold dark:text-white text-slate-900 flex items-center gap-2">

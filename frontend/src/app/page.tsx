@@ -13,9 +13,69 @@ import { FAQSection } from "@/components/storefront/FAQSection";
 import { PlatformLanding } from "@/components/platform/PlatformLanding";
 import PlatformSuperAdminPage from "@/app/(platform)/platform/page";
 import { getPublicFAQs } from "@/lib/api/dashboard";
+import type { Metadata } from "next";
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const resolvedSearchParams = await searchParams;
+  const headerList = await headers();
+  const host = headerList.get("host") || "localhost:3000";
+
+  const rawPreview =
+    resolvedSearchParams.theme_preview || resolvedSearchParams.preview_theme;
+  const previewThemeId = typeof rawPreview === "string" ? rawPreview : null;
+  const tenantQuery =
+    typeof resolvedSearchParams.tenant === "string" ? resolvedSearchParams.tenant : null;
+
+  const resolution = await resolveTenant(host, previewThemeId, tenantQuery);
+
+  if (resolution.isAdmin) {
+    return {
+      title: "Platform Super-Admin | Multi-Tenant Fleet Core",
+      description: "Super-admin portal for platform administration",
+    };
+  }
+
+  if (resolution.isPlatform && !tenantQuery) {
+    return {
+      title: "Apex Mobility | Next-Gen Multi-Tenant Car Rental Platform",
+      description: "Scale your car rental enterprise with isolated tenant databases, custom branding, and real-time fleet operations.",
+    };
+  }
+
+  const { branding } = resolution;
+  const title =
+    branding.website_title ||
+    branding.seo_meta_title ||
+    (branding.name ? `${branding.name} | Luxury & Standard Car Rental` : "Car Rental");
+  const description =
+    branding.seo_meta_description ||
+    branding.hero_subtitle ||
+    "Enterprise automotive hire platform with dynamic theme engine and real-time fleet availability.";
+
+  const icons: Metadata["icons"] = [];
+  if (branding.favicon_url) {
+    icons.push({ rel: "icon", url: branding.favicon_url });
+    icons.push({ rel: "shortcut icon", url: branding.favicon_url });
+    icons.push({ rel: "apple-touch-icon", url: branding.favicon_url });
+  }
+
+  return {
+    title,
+    description,
+    keywords: branding.seo_keywords
+      ? branding.seo_keywords.split(",").map((k) => k.trim())
+      : undefined,
+    ...(icons.length > 0 ? { icons } : {}),
+    openGraph: {
+      title,
+      description,
+      images: branding.og_image_url ? [{ url: branding.og_image_url }] : undefined,
+    },
+  };
 }
 
 export default async function HomePage({ searchParams }: PageProps) {

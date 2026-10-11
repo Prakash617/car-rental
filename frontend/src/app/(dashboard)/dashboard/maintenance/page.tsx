@@ -48,7 +48,7 @@ import { Vehicle } from "@/types";
 type ActiveTab = "records" | "inspections" | "telemetry";
 
 export default function FleetMaintenancePage() {
-  const { token } = useAuth();
+  const { token, tenantDomain } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>("records");
   const [overview, setOverview] = useState<FleetHealthOverview | null>(null);
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
@@ -57,6 +57,15 @@ export default function FleetMaintenancePage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  let queryTenant: string | null = null;
+  if (typeof window !== "undefined") {
+    queryTenant = new URLSearchParams(window.location.search).get("tenant");
+  }
+  const activeTenant = queryTenant || tenantDomain || "superbang.localhost";
+  const cleanDomain = activeTenant.replace(/:\d+$/, "");
+  const tenantHost = `${cleanDomain}:3000`;
+  const defaultHubName = `${cleanDomain.split(".")[0].toUpperCase()} Service Depot`;
 
   // Modals
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -68,7 +77,7 @@ export default function FleetMaintenancePage() {
     service_type: "Routine Oil & Multi-Point Inspection",
     scheduled_start: "2026-10-01T09:00",
     scheduled_end: "2026-10-02T18:00",
-    service_center: "Apex Official Service Center",
+    service_center: defaultHubName,
     notes: "",
   }));
 
@@ -87,11 +96,11 @@ export default function FleetMaintenancePage() {
   const loadData = useCallback(async () => {
     try {
       const [ov, recs, insps, tels, vechs] = await Promise.all([
-        fetchFleetHealthOverview(token || undefined).catch(() => null),
-        fetchMaintenanceRecords(undefined, token || undefined).catch(() => []),
-        fetchInspections(undefined, token || undefined).catch(() => []),
-        fetchTelemetry(token || undefined).catch(() => []),
-        fetchVehicles(undefined, token || undefined).catch(() => []),
+        fetchFleetHealthOverview(token || undefined, tenantHost).catch(() => null),
+        fetchMaintenanceRecords(undefined, token || undefined, tenantHost).catch(() => []),
+        fetchInspections(undefined, token || undefined, tenantHost).catch(() => []),
+        fetchTelemetry(token || undefined, tenantHost).catch(() => []),
+        fetchVehicles(undefined, token || undefined, tenantHost).catch(() => []),
       ]);
       setOverview(ov);
       setRecords(recs);
@@ -108,7 +117,7 @@ export default function FleetMaintenancePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [token]);
+  }, [token, tenantHost]);
 
   useEffect(() => {
     loadData();
@@ -117,7 +126,7 @@ export default function FleetMaintenancePage() {
   const handleStartService = async (recordId: string) => {
     setIsProcessing(true);
     try {
-      const updated = await startMaintenance(recordId, token || undefined);
+      const updated = await startMaintenance(recordId, token || undefined, tenantHost);
       setRecords((prev) => prev.map((r) => (r.id === recordId ? updated : r)));
       toast.success("Service status updated to IN PROGRESS");
       await loadData();
@@ -130,7 +139,7 @@ export default function FleetMaintenancePage() {
   };
 
   const handleCompleteService = async (recordId: string) => {
-    const costStr = prompt("Enter final service invoice cost ($):", "450.00");
+    const costStr = prompt("Enter final service invoice cost (Rs.):", "4500");
     if (costStr === null) return;
     const notes = prompt("Enter mechanic service notes:", "All systems cleared and verified.");
 
@@ -143,7 +152,8 @@ export default function FleetMaintenancePage() {
           mechanic_notes: notes || undefined,
           actual_completion: new Date().toISOString(),
         },
-        token || undefined
+        token || undefined,
+        tenantHost
       );
       setRecords((prev) => prev.map((r) => (r.id === recordId ? updated : r)));
       toast.success("Maintenance service completed and vehicle restored to available");
@@ -164,7 +174,7 @@ export default function FleetMaintenancePage() {
     }
     setIsProcessing(true);
     try {
-      const created = await scheduleMaintenance(scheduleForm, token || undefined);
+      const created = await scheduleMaintenance(scheduleForm, token || undefined, tenantHost);
       setRecords((prev) => [created, ...prev]);
       setShowScheduleModal(false);
       toast.success("Maintenance window scheduled", {
@@ -187,7 +197,7 @@ export default function FleetMaintenancePage() {
     }
     setIsProcessing(true);
     try {
-      const created = await createInspection(inspectionForm, token || undefined);
+      const created = await createInspection(inspectionForm, token || undefined, tenantHost);
       setInspections((prev) => [created, ...prev]);
       setShowInspectionModal(false);
       toast.success("Inspection log recorded", {
@@ -208,14 +218,14 @@ export default function FleetMaintenancePage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
-              Fleet Maintenance & Telemetry Hub
+            <h1 className="text-2xl font-bold tracking-tight dark:text-white text-slate-900 md:text-3xl">
+              Fleet Maintenance &amp; Telemetry Hub
             </h1>
-            <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-mono text-amber-400">
+            <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-mono dark:text-amber-400 text-amber-700 font-semibold">
               Operational Safety
             </span>
           </div>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm dark:text-zinc-400 text-slate-600">
             Track service intervals, pre/post trip digital inspections, and real-time vehicle diagnostics.
           </p>
         </div>
@@ -225,7 +235,7 @@ export default function FleetMaintenancePage() {
             variant="outline"
             size="sm"
             onClick={loadData}
-            className="border-white/[0.08] text-zinc-300 hover:text-white"
+            className="dark:border-white/[0.08] border-slate-200 dark:text-zinc-300 text-slate-700 dark:hover:text-white hover:text-slate-900 dark:bg-transparent bg-white shadow-2xs"
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Refresh
@@ -233,15 +243,15 @@ export default function FleetMaintenancePage() {
           <Button
             size="sm"
             onClick={() => setShowInspectionModal(true)}
-            className="bg-zinc-800 hover:bg-zinc-700 text-white border border-white/[0.1]"
+            className="dark:bg-zinc-800 bg-slate-100 dark:hover:bg-zinc-700 hover:bg-slate-200 dark:text-white text-slate-800 dark:border-white/[0.1] border-slate-300 shadow-2xs font-medium"
           >
-            <ClipboardCheck className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
+            <ClipboardCheck className="h-3.5 w-3.5 mr-1.5 text-blue-500" />
             Digital Inspection
           </Button>
           <Button
             size="sm"
             onClick={() => setShowScheduleModal(true)}
-            className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+            className="bg-amber-500 hover:bg-amber-600 text-black font-semibold shadow-2xs"
           >
             <Plus className="h-4 w-4 mr-1.5" />
             Schedule Service
@@ -251,95 +261,95 @@ export default function FleetMaintenancePage() {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card className="border-white/[0.08] bg-zinc-950/60 p-4">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white p-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400">Fleet Inventory</span>
-            <Car className="h-4 w-4 text-zinc-500" />
+            <span className="text-xs font-medium dark:text-zinc-400 text-slate-500">Fleet Inventory</span>
+            <Car className="h-4 w-4 dark:text-zinc-500 text-slate-400" />
           </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-white">
+          <div className="mt-2 text-2xl font-bold font-mono dark:text-white text-slate-900">
             {overview?.fleet_size ?? vehicles.length}
           </div>
-          <span className="text-[11px] text-zinc-500 font-mono">
+          <span className="text-[11px] dark:text-zinc-500 text-slate-500 font-mono">
             {overview?.available ?? 0} available for dispatch
           </span>
         </Card>
 
-        <Card className="border-white/[0.08] bg-zinc-950/60 p-4">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white p-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400">In Maintenance</span>
-            <Wrench className="h-4 w-4 text-amber-400" />
+            <span className="text-xs font-medium dark:text-zinc-400 text-slate-500">In Maintenance</span>
+            <Wrench className="h-4 w-4 text-amber-500" />
           </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-amber-400">
+          <div className="mt-2 text-2xl font-bold font-mono dark:text-amber-400 text-amber-600">
             {overview?.in_maintenance ?? 0}
           </div>
-          <span className="text-[11px] text-amber-500/80 font-mono">
+          <span className="text-[11px] dark:text-amber-500/80 text-amber-700 font-mono">
             {overview?.active_maintenance_jobs ?? records.filter((r) => r.status === "in_progress").length} active service orders
           </span>
         </Card>
 
-        <Card className="border-white/[0.08] bg-zinc-950/60 p-4">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white p-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400">Monthly Expense</span>
-            <DollarSign className="h-4 w-4 text-emerald-400" />
+            <span className="text-xs font-medium dark:text-zinc-400 text-slate-500">Monthly Expense</span>
+            <DollarSign className="h-4 w-4 text-emerald-500" />
           </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-emerald-400">
+          <div className="mt-2 text-2xl font-bold font-mono dark:text-emerald-400 text-emerald-600">
             ${Number(overview?.monthly_maintenance_cost || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
           </div>
-          <span className="text-[11px] text-zinc-500 font-mono">Billed repairs this month</span>
+          <span className="text-[11px] dark:text-zinc-500 text-slate-500 font-mono">Billed repairs this month</span>
         </Card>
 
-        <Card className="border-white/[0.08] bg-zinc-950/60 p-4">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white p-4 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-400">Health Status</span>
-            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <span className="text-xs font-medium dark:text-zinc-400 text-slate-500">Health Status</span>
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
           </div>
-          <div className="mt-2 text-2xl font-bold font-mono text-emerald-400">
+          <div className="mt-2 text-2xl font-bold font-mono dark:text-emerald-400 text-emerald-600">
             98.5%
           </div>
-          <span className="text-[11px] text-zinc-500 font-mono">Fleet uptime compliance</span>
+          <span className="text-[11px] dark:text-zinc-500 text-slate-500 font-mono">Fleet uptime compliance</span>
         </Card>
       </div>
 
       {/* Tabs Selector */}
-      <div className="flex border-b border-white/[0.08]">
+      <div className="flex border-b dark:border-white/[0.08] border-slate-200">
         <button
           onClick={() => setActiveTab("records")}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors cursor-pointer ${
             activeTab === "records"
-              ? "border-amber-400 text-white"
-              : "border-transparent text-zinc-400 hover:text-zinc-200"
+              ? "border-amber-500 dark:text-white text-slate-900"
+              : "border-transparent dark:text-zinc-400 text-slate-500 dark:hover:text-zinc-200 hover:text-slate-800"
           }`}
         >
-          <Wrench className="h-4 w-4 text-amber-400" />
+          <Wrench className="h-4 w-4 text-amber-500" />
           Service Records ({records.length})
         </button>
         <button
           onClick={() => setActiveTab("inspections")}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors cursor-pointer ${
             activeTab === "inspections"
-              ? "border-amber-400 text-white"
-              : "border-transparent text-zinc-400 hover:text-zinc-200"
+              ? "border-amber-500 dark:text-white text-slate-900"
+              : "border-transparent dark:text-zinc-400 text-slate-500 dark:hover:text-zinc-200 hover:text-slate-800"
           }`}
         >
-          <ClipboardCheck className="h-4 w-4 text-blue-400" />
+          <ClipboardCheck className="h-4 w-4 text-blue-500" />
           Digital Inspections ({inspections.length})
         </button>
         <button
           onClick={() => setActiveTab("telemetry")}
-          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+          className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-semibold transition-colors cursor-pointer ${
             activeTab === "telemetry"
-              ? "border-amber-400 text-white"
-              : "border-transparent text-zinc-400 hover:text-zinc-200"
+              ? "border-amber-500 dark:text-white text-slate-900"
+              : "border-transparent dark:text-zinc-400 text-slate-500 dark:hover:text-zinc-200 hover:text-slate-800"
           }`}
         >
-          <Activity className="h-4 w-4 text-emerald-400" />
+          <Activity className="h-4 w-4 text-emerald-500" />
           Live Diagnostics ({telemetry.length})
         </button>
       </div>
 
       {/* TAB 1: Service Records */}
       {activeTab === "records" && (
-        <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-6 space-y-4">
@@ -347,40 +357,40 @@ export default function FleetMaintenancePage() {
                 <Skeleton className="h-12 w-full" />
               </div>
             ) : records.length === 0 ? (
-              <div className="p-12 text-center text-zinc-500 text-sm">
+              <div className="p-12 text-center dark:text-zinc-500 text-slate-500 text-sm">
                 No maintenance service records found. Click &quot;Schedule Service&quot; to book an order.
               </div>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="border-white/[0.06] hover:bg-transparent">
-                    <TableHead className="text-zinc-400 text-xs">Vehicle</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Service Type</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Status</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Schedule Window</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Service Center</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Invoice Cost</TableHead>
-                    <TableHead className="text-zinc-400 text-xs text-right">Actions</TableHead>
+                  <TableRow className="dark:border-white/[0.06] border-slate-200 hover:bg-transparent">
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Vehicle</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Service Type</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Status</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Schedule Window</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Service Center</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Invoice Cost</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {records.map((r) => (
-                    <TableRow key={r.id} className="border-white/[0.06] hover:bg-white/[0.02]">
+                    <TableRow key={r.id} className="dark:border-white/[0.06] border-slate-100 dark:hover:bg-white/[0.02] hover:bg-slate-50/80">
                       <TableCell>
                         <div>
-                          <span className="font-bold text-white text-xs block">
+                          <span className="font-bold dark:text-white text-slate-900 text-xs block">
                             {r.vehicle_brand} {r.vehicle_model}
                           </span>
-                          <span className="font-mono text-[11px] text-zinc-500">
+                          <span className="font-mono text-[11px] dark:text-zinc-500 text-slate-500">
                             {r.vehicle_plate}
                           </span>
                         </div>
                       </TableCell>
 
                       <TableCell>
-                        <span className="text-xs text-zinc-200">{r.service_type}</span>
+                        <span className="text-xs dark:text-zinc-200 text-slate-800 font-medium">{r.service_type}</span>
                         {r.notes && (
-                          <span className="block text-[11px] text-zinc-500 truncate max-w-xs">
+                          <span className="block text-[11px] dark:text-zinc-500 text-slate-500 truncate max-w-xs">
                             {r.notes}
                           </span>
                         )}
@@ -390,12 +400,12 @@ export default function FleetMaintenancePage() {
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-mono font-medium ${
                             r.status === "completed"
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                              ? "dark:bg-emerald-500/10 bg-emerald-50 dark:text-emerald-400 text-emerald-700 border dark:border-emerald-500/20 border-emerald-200"
                               : r.status === "in_progress"
-                              ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                              ? "dark:bg-blue-500/10 bg-blue-50 dark:text-blue-400 text-blue-700 border dark:border-blue-500/20 border-blue-200"
                               : r.status === "scheduled"
-                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                              : "bg-zinc-500/10 text-zinc-400 border border-zinc-500/20"
+                              ? "dark:bg-amber-500/10 bg-amber-50 dark:text-amber-400 text-amber-700 border dark:border-amber-500/20 border-amber-200"
+                              : "dark:bg-zinc-500/10 bg-slate-100 dark:text-zinc-400 text-slate-700 border dark:border-zinc-500/20 border-slate-200"
                           }`}
                         >
                           {r.status.toUpperCase()}
@@ -403,23 +413,23 @@ export default function FleetMaintenancePage() {
                       </TableCell>
 
                       <TableCell>
-                        <div className="text-xs text-zinc-400 space-y-0.5">
+                        <div className="text-xs dark:text-zinc-400 text-slate-600 space-y-0.5">
                           <div className="flex items-center gap-1 text-[11px] font-mono">
-                            <Clock className="h-3 w-3 text-zinc-500" />
+                            <Clock className="h-3 w-3 dark:text-zinc-500 text-slate-400" />
                             {new Date(r.scheduled_start).toLocaleDateString()}
                           </div>
                         </div>
                       </TableCell>
 
                       <TableCell>
-                        <span className="text-xs text-zinc-300">
+                        <span className="text-xs dark:text-zinc-300 text-slate-700">
                           {r.service_center || "In-House Concierge"}
                         </span>
                       </TableCell>
 
                       <TableCell>
-                        <span className="font-mono text-xs font-semibold text-emerald-400">
-                          {r.cost ? `$${Number(r.cost).toLocaleString()}` : "—"}
+                        <span className="font-mono text-xs font-semibold dark:text-emerald-400 text-emerald-600">
+                          {r.cost ? `Rs. ${Number(r.cost).toLocaleString()}` : "—"}
                         </span>
                       </TableCell>
 
@@ -431,7 +441,7 @@ export default function FleetMaintenancePage() {
                               variant="outline"
                               disabled={isProcessing}
                               onClick={() => handleStartService(r.id)}
-                              className="h-7 px-2 text-[11px] border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
+                              className="h-7 px-2 text-[11px] dark:border-amber-500/30 border-amber-300 dark:text-amber-400 text-amber-700 dark:hover:bg-amber-500/10 hover:bg-amber-50"
                             >
                               Start Service
                             </Button>
@@ -442,13 +452,13 @@ export default function FleetMaintenancePage() {
                               variant="outline"
                               disabled={isProcessing}
                               onClick={() => handleCompleteService(r.id)}
-                              className="h-7 px-2 text-[11px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                              className="h-7 px-2 text-[11px] dark:border-emerald-500/30 border-emerald-300 dark:text-emerald-400 text-emerald-700 dark:hover:bg-emerald-500/10 hover:bg-emerald-50"
                             >
                               Complete
                             </Button>
                           )}
                           {r.status === "completed" && (
-                            <span className="text-[11px] font-mono text-zinc-500">Concluded</span>
+                            <span className="text-[11px] font-mono dark:text-zinc-500 text-slate-400">Concluded</span>
                           )}
                         </div>
                       </TableCell>
@@ -463,63 +473,64 @@ export default function FleetMaintenancePage() {
 
       {/* TAB 2: Digital Inspections */}
       {activeTab === "inspections" && (
-        <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
           <CardContent className="p-0">
             {isLoading ? (
               <div className="p-6 space-y-4">
                 <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
               </div>
             ) : inspections.length === 0 ? (
-              <div className="p-12 text-center text-zinc-500 text-sm">
+              <div className="p-12 text-center dark:text-zinc-500 text-slate-500 text-sm">
                 No inspection reports logged. Click &quot;Digital Inspection&quot; to record check-in/out condition.
               </div>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="border-white/[0.06] hover:bg-transparent">
-                    <TableHead className="text-zinc-400 text-xs">Vehicle Plate</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Inspection Type</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Odometer</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Fuel / Battery</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Condition (Ext/Int)</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Damage Alert</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Timestamp</TableHead>
+                  <TableRow className="dark:border-white/[0.06] border-slate-200 hover:bg-transparent">
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Vehicle Plate</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Inspection Type</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Odometer</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Fuel / Battery</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Condition (Ext/Int)</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Damage Alert</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Timestamp</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {inspections.map((insp) => (
-                    <TableRow key={insp.id} className="border-white/[0.06] hover:bg-white/[0.02]">
+                    <TableRow key={insp.id} className="dark:border-white/[0.06] border-slate-100 dark:hover:bg-white/[0.02] hover:bg-slate-50/80">
                       <TableCell>
-                        <span className="font-mono text-xs font-bold text-white">
+                        <span className="font-mono text-xs font-bold dark:text-white text-slate-900">
                           {insp.vehicle_plate}
                         </span>
                         {insp.booking_reference && (
-                          <span className="block font-mono text-[10px] text-zinc-500">
+                          <span className="block font-mono text-[10px] dark:text-zinc-500 text-slate-500">
                             Ref: {insp.booking_reference}
                           </span>
                         )}
                       </TableCell>
 
                       <TableCell>
-                        <span className="text-xs uppercase font-mono text-zinc-300">
+                        <span className="text-xs uppercase font-mono dark:text-zinc-300 text-slate-700 font-medium">
                           {insp.inspection_type.replace("_", " ")}
                         </span>
                       </TableCell>
 
                       <TableCell>
-                        <span className="font-mono text-xs text-zinc-200">
+                        <span className="font-mono text-xs dark:text-zinc-200 text-slate-700">
                           {Number(insp.odometer).toLocaleString()} mi
                         </span>
                       </TableCell>
 
                       <TableCell>
                         <div className="flex items-center gap-3 text-xs font-mono">
-                          <span className="flex items-center gap-1 text-amber-400">
+                          <span className="flex items-center gap-1 dark:text-amber-400 text-amber-600 font-semibold">
                             <Fuel className="h-3 w-3" />
                             {insp.fuel_percentage}%
                           </span>
                           {insp.battery_percentage !== undefined && insp.battery_percentage !== null && (
-                            <span className="flex items-center gap-1 text-emerald-400">
+                            <span className="flex items-center gap-1 dark:text-emerald-400 text-emerald-600 font-semibold">
                               <Battery className="h-3 w-3" />
                               {insp.battery_percentage}%
                             </span>
@@ -528,19 +539,19 @@ export default function FleetMaintenancePage() {
                       </TableCell>
 
                       <TableCell>
-                        <span className="text-xs font-mono text-zinc-300 capitalize">
+                        <span className="text-xs font-mono dark:text-zinc-300 text-slate-700 capitalize">
                           {insp.exterior_condition} / {insp.interior_condition}
                         </span>
                       </TableCell>
 
                       <TableCell>
                         {insp.has_new_damage ? (
-                          <span className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-2 py-0.5 text-[10px] font-mono text-rose-400 border border-rose-500/20">
+                          <span className="inline-flex items-center gap-1 rounded dark:bg-rose-500/10 bg-rose-50 px-2 py-0.5 text-[10px] font-mono dark:text-rose-400 text-rose-700 border dark:border-rose-500/20 border-rose-200">
                             <AlertTriangle className="h-3 w-3" />
                             {insp.damage_description || "Damage Recorded"}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-mono text-emerald-400">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono dark:text-emerald-400 text-emerald-600 font-medium">
                             <CheckCircle2 className="h-3 w-3" />
                             Pristine
                           </span>
@@ -548,7 +559,7 @@ export default function FleetMaintenancePage() {
                       </TableCell>
 
                       <TableCell>
-                        <span className="font-mono text-[11px] text-zinc-500">
+                        <span className="font-mono text-[11px] dark:text-zinc-500 text-slate-500">
                           {new Date(insp.created_at).toLocaleDateString()}
                         </span>
                       </TableCell>
@@ -563,54 +574,54 @@ export default function FleetMaintenancePage() {
 
       {/* TAB 3: Telemetry */}
       {activeTab === "telemetry" && (
-        <Card className="border-white/[0.08] bg-zinc-950/60 backdrop-blur-xl">
+        <Card className="dark:border-white/[0.08] border-slate-200 dark:bg-zinc-950/60 bg-white shadow-2xs backdrop-blur-xl">
           <CardContent className="p-0">
             {telemetry.length === 0 ? (
-              <div className="p-12 text-center text-zinc-500 text-sm">
+              <div className="p-12 text-center dark:text-zinc-500 text-slate-500 text-sm">
                 No active IoT telemetry signals currently streaming. Vehicles emit beacons during active trips.
               </div>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="border-white/[0.06] hover:bg-transparent">
-                    <TableHead className="text-zinc-400 text-xs">Vehicle Plate</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Engine State</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Speed</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Fuel / Battery</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">GPS Coordinates</TableHead>
-                    <TableHead className="text-zinc-400 text-xs">Last Signal</TableHead>
+                  <TableRow className="dark:border-white/[0.06] border-slate-200 hover:bg-transparent">
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Vehicle Plate</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Engine State</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Speed</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Fuel / Battery</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">GPS Coordinates</TableHead>
+                    <TableHead className="dark:text-zinc-400 text-slate-600 text-xs font-semibold">Last Signal</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {telemetry.map((t) => (
-                    <TableRow key={t.id} className="border-white/[0.06] hover:bg-white/[0.02]">
+                    <TableRow key={t.id} className="dark:border-white/[0.06] border-slate-100 dark:hover:bg-white/[0.02] hover:bg-slate-50/80">
                       <TableCell>
-                        <span className="font-mono text-xs font-bold text-white">
+                        <span className="font-mono text-xs font-bold dark:text-white text-slate-900">
                           {t.vehicle_plate}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono text-emerald-400">
+                        <span className="rounded dark:bg-emerald-500/10 bg-emerald-50 px-2 py-0.5 text-[10px] font-mono dark:text-emerald-400 text-emerald-700 border dark:border-emerald-500/20 border-emerald-200 font-medium">
                           {t.engine_status?.toUpperCase() || "IDLE"}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs text-zinc-300">
+                        <span className="font-mono text-xs dark:text-zinc-300 text-slate-700">
                           {t.speed ? `${t.speed} mph` : "0 mph"}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs text-amber-400">
+                        <span className="font-mono text-xs dark:text-amber-400 text-amber-600 font-semibold">
                           {t.fuel_level ? `${t.fuel_level}%` : "—"}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-[11px] text-zinc-400">
+                        <span className="font-mono text-[11px] dark:text-zinc-400 text-slate-500">
                           {t.latitude && t.longitude ? `${t.latitude}, ${t.longitude}` : "Locked in Depot"}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-[11px] text-zinc-500">
+                        <span className="font-mono text-[11px] dark:text-zinc-500 text-slate-500">
                           {new Date(t.timestamp).toLocaleTimeString()}
                         </span>
                       </TableCell>
@@ -625,22 +636,22 @@ export default function FleetMaintenancePage() {
 
       {/* SCHEDULE SERVICE MODAL */}
       {showScheduleModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <Card className="max-w-md w-full border-white/[0.12] bg-zinc-950 p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4">
+          <Card className="max-w-md w-full dark:border-white/[0.12] border-slate-200 dark:bg-zinc-950 bg-white p-6 shadow-2xl relative">
             <button
               onClick={() => setShowScheduleModal(false)}
-              className="absolute right-4 top-4 text-zinc-400 hover:text-white"
+              className="absolute right-4 top-4 dark:text-zinc-400 text-slate-400 dark:hover:text-white hover:text-slate-700"
             >
               ✕
             </button>
-            <h3 className="text-lg font-bold text-white mb-4">Schedule Fleet Service</h3>
+            <h3 className="text-lg font-bold dark:text-white text-slate-900 mb-4">Schedule Fleet Service</h3>
             <form onSubmit={handleScheduleSubmit} className="space-y-3.5 text-xs">
               <div>
-                <label className="text-zinc-400 block mb-1">Target Vehicle *</label>
+                <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Target Vehicle *</label>
                 <Select
                   value={scheduleForm.vehicle}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, vehicle: e.target.value })}
-                  className="bg-black/40 border-white/[0.08] text-white"
+                  className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900"
                 >
                   {vehicles.length === 0 ? (
                     <option value="" disabled>Loading vehicles...</option>
@@ -655,67 +666,67 @@ export default function FleetMaintenancePage() {
               </div>
 
               <div>
-                <label className="text-zinc-400 block mb-1">Service Order Type *</label>
+                <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Service Order Type *</label>
                 <Input
                   value={scheduleForm.service_type}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, service_type: e.target.value })}
                   placeholder="e.g. Brake Pad Replacement, 20K Service"
-                  className="bg-black/40 border-white/[0.08] text-white"
+                  className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900"
                   required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-zinc-400 block mb-1">Scheduled Start *</label>
+                  <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Scheduled Start *</label>
                   <Input
                     type="datetime-local"
                     value={scheduleForm.scheduled_start}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, scheduled_start: e.target.value })}
-                    className="bg-black/40 border-white/[0.08] text-white"
+                    className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900"
                     required
                   />
                 </div>
                 <div>
-                  <label className="text-zinc-400 block mb-1">Scheduled End *</label>
+                  <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Scheduled End *</label>
                   <Input
                     type="datetime-local"
                     value={scheduleForm.scheduled_end}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, scheduled_end: e.target.value })}
-                    className="bg-black/40 border-white/[0.08] text-white"
+                    className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-zinc-400 block mb-1">Certified Service Center</label>
+                <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Certified Service Center</label>
                 <Input
                   value={scheduleForm.service_center}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, service_center: e.target.value })}
                   placeholder="e.g. Official Dealer Service Hub"
-                  className="bg-black/40 border-white/[0.08] text-white"
+                  className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900"
                 />
               </div>
 
               <div>
-                <label className="text-zinc-400 block mb-1">Concierge Notes</label>
+                <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Concierge Notes</label>
                 <textarea
                   value={scheduleForm.notes}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, notes: e.target.value })}
                   rows={2}
-                  className="w-full rounded-md border border-white/[0.08] bg-black/40 p-2 text-white font-mono text-xs focus:outline-none"
+                  className="w-full rounded-md border dark:border-white/[0.08] border-slate-300 dark:bg-black/40 bg-slate-50 p-2 dark:text-white text-slate-900 font-mono text-xs focus:outline-none"
                   placeholder="Mechanic instructions or warranty policy ID..."
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.08]">
+              <div className="flex justify-end gap-2 pt-2 border-t dark:border-white/[0.08] border-slate-200">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setShowScheduleModal(false)}
-                  className="border-white/[0.1] text-zinc-300"
+                  className="dark:border-white/[0.1] border-slate-300 dark:text-zinc-300 text-slate-700 dark:hover:bg-white/[0.05] hover:bg-slate-100"
                 >
                   Cancel
                 </Button>
@@ -735,22 +746,22 @@ export default function FleetMaintenancePage() {
 
       {/* INSPECTION MODAL */}
       {showInspectionModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <Card className="max-w-md w-full border-white/[0.12] bg-zinc-950 p-6 shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-sm p-4">
+          <Card className="max-w-md w-full dark:border-white/[0.12] border-slate-200 dark:bg-zinc-950 bg-white p-6 shadow-2xl relative">
             <button
               onClick={() => setShowInspectionModal(false)}
-              className="absolute right-4 top-4 text-zinc-400 hover:text-white"
+              className="absolute right-4 top-4 dark:text-zinc-400 text-slate-400 dark:hover:text-white hover:text-slate-700"
             >
               ✕
             </button>
-            <h3 className="text-lg font-bold text-white mb-4">Record Digital Vehicle Inspection</h3>
+            <h3 className="text-lg font-bold dark:text-white text-slate-900 mb-4">Record Digital Vehicle Inspection</h3>
             <form onSubmit={handleInspectionSubmit} className="space-y-3.5 text-xs">
               <div>
-                <label className="text-zinc-400 block mb-1">Vehicle *</label>
+                <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Vehicle *</label>
                 <Select
                   value={inspectionForm.vehicle_id}
                   onChange={(e) => setInspectionForm({ ...inspectionForm, vehicle_id: e.target.value })}
-                  className="bg-black/40 border-white/[0.08] text-white"
+                  className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900"
                 >
                   {vehicles.length === 0 ? (
                     <option value="" disabled>Loading vehicles...</option>
@@ -766,7 +777,7 @@ export default function FleetMaintenancePage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-zinc-400 block mb-1">Inspection Type</label>
+                  <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Inspection Type</label>
                   <Select
                     value={inspectionForm.inspection_type}
                     onChange={(e) =>
@@ -775,7 +786,7 @@ export default function FleetMaintenancePage() {
                         inspection_type: e.target.value as CreateInspectionPayload["inspection_type"],
                       })
                     }
-                    className="bg-black/40 border-white/[0.08] text-white"
+                    className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900"
                   >
                     <option value="check_out">Check-Out (Pre-Trip)</option>
                     <option value="check_in">Check-In (Post-Trip)</option>
@@ -783,12 +794,12 @@ export default function FleetMaintenancePage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-zinc-400 block mb-1">Odometer (mi) *</label>
+                  <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Odometer (mi) *</label>
                   <Input
                     type="number"
                     value={inspectionForm.odometer}
                     onChange={(e) => setInspectionForm({ ...inspectionForm, odometer: Number(e.target.value) })}
-                    className="bg-black/40 border-white/[0.08] text-white font-mono"
+                    className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900 font-mono"
                     required
                   />
                 </div>
@@ -796,18 +807,18 @@ export default function FleetMaintenancePage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-zinc-400 block mb-1">Fuel Level (%)</label>
+                  <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Fuel Level (%)</label>
                   <Input
                     type="number"
                     min={0}
                     max={100}
                     value={inspectionForm.fuel_percentage}
                     onChange={(e) => setInspectionForm({ ...inspectionForm, fuel_percentage: Number(e.target.value) })}
-                    className="bg-black/40 border-white/[0.08] text-white font-mono"
+                    className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900 font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-zinc-400 block mb-1">Exterior State</label>
+                  <label className="dark:text-zinc-400 text-slate-700 font-medium block mb-1">Exterior State</label>
                   <Select
                     value={inspectionForm.exterior_condition}
                     onChange={(e) =>
@@ -816,7 +827,7 @@ export default function FleetMaintenancePage() {
                         exterior_condition: e.target.value as CreateInspectionPayload["exterior_condition"],
                       })
                     }
-                    className="bg-black/40 border-white/[0.08] text-white"
+                    className="dark:bg-black/40 bg-slate-50 dark:border-white/[0.08] border-slate-300 dark:text-white text-slate-900"
                   >
                     <option value="excellent">Excellent</option>
                     <option value="good">Good</option>
@@ -826,13 +837,13 @@ export default function FleetMaintenancePage() {
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-white/[0.08]">
-                <label className="flex items-center gap-2 text-zinc-300 cursor-pointer">
+              <div className="pt-2 border-t dark:border-white/[0.08] border-slate-200">
+                <label className="flex items-center gap-2 dark:text-zinc-300 text-slate-700 cursor-pointer font-medium">
                   <input
                     type="checkbox"
                     checked={inspectionForm.has_new_damage}
                     onChange={(e) => setInspectionForm({ ...inspectionForm, has_new_damage: e.target.checked })}
-                    className="rounded border-white/[0.2] bg-black text-amber-500"
+                    className="rounded dark:border-white/[0.2] border-slate-300 dark:bg-black bg-white text-amber-500"
                   />
                   <span>Report New Scratch / Dent / Body Damage</span>
                 </label>
@@ -842,18 +853,18 @@ export default function FleetMaintenancePage() {
                     onChange={(e) => setInspectionForm({ ...inspectionForm, damage_description: e.target.value })}
                     rows={2}
                     placeholder="Describe location and severity of damage..."
-                    className="mt-2 w-full rounded border border-rose-500/40 bg-black/40 p-2 text-white font-mono text-xs"
+                    className="mt-2 w-full rounded border border-rose-500/40 dark:bg-black/40 bg-rose-50/40 p-2 dark:text-white text-slate-900 font-mono text-xs focus:outline-none"
                   />
                 )}
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.08]">
+              <div className="flex justify-end gap-2 pt-2 border-t dark:border-white/[0.08] border-slate-200">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setShowInspectionModal(false)}
-                  className="border-white/[0.1] text-zinc-300"
+                  className="dark:border-white/[0.1] border-slate-300 dark:text-zinc-300 text-slate-700 dark:hover:bg-white/[0.05] hover:bg-slate-100"
                 >
                   Cancel
                 </Button>

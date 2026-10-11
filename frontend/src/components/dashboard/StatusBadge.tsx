@@ -34,6 +34,14 @@ export function StatusBadge({ type, status, className }: StatusBadgeProps) {
             Maintenance
           </span>
         );
+      case "pending_approval":
+      case "pending":
+        return (
+          <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30", className)}>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Pending Review
+          </span>
+        );
       case "reserved":
         return (
           <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20", className)}>

@@ -43,7 +43,21 @@ class WebsiteConfig(models.Model):
         default="serif",
         help_text="'serif' (luxury/classic) or 'sans' (modern/urban/minimal)",
     )
-    logo_url = models.URLField("Brand Logo URL", blank=True, null=True)
+    logo_url = models.CharField("Brand Logo URL", max_length=500, blank=True, null=True)
+    favicon_url = models.CharField(
+        "Website Favicon URL",
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="Favicon URL or relative media path (.ico, .png, .svg)",
+    )
+    website_title = models.CharField(
+        "Website Title / Tab Title",
+        max_length=200,
+        blank=True,
+        null=True,
+        help_text="Browser tab title and website brand display title",
+    )
     support_email = models.EmailField("Concierge Support Email", blank=True, null=True)
     support_phone = models.CharField(
         "Concierge Hotline Phone", max_length=30, blank=True, null=True
