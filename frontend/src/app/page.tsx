@@ -1,14 +1,16 @@
 import React, { Suspense } from "react";
 import Link from "next/link";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { Car, Sparkles, ArrowRight, ShieldCheck, DollarSign } from "lucide-react";
 import { resolveTenant } from "@/lib/tenant/resolver";
 import { getThemeDefinition } from "@/lib/themes/registry";
 import { fetchVehicles } from "@/lib/api/vehicles";
 import { Vehicle } from "@/types";
 import { Navbar } from "@/components/navigation/Navbar";
+import { BrandingProvider } from "@/lib/context/branding";
 import { SessionRedirect } from "@/components/auth/SessionRedirect";
 import { ThemePreviewBanner } from "@/components/themes/ThemePreviewBanner";
+import { FloatingContactWidget } from "@/components/navigation/FloatingContactWidget";
 import { FAQSection } from "@/components/storefront/FAQSection";
 import { PlatformLanding } from "@/components/platform/PlatformLanding";
 import PlatformSuperAdminPage from "@/app/(platform)/platform/page";
@@ -57,10 +59,11 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
     "Enterprise automotive hire platform with dynamic theme engine and real-time fleet availability.";
 
   const icons: Metadata["icons"] = [];
-  if (branding.favicon_url) {
-    icons.push({ rel: "icon", url: branding.favicon_url });
-    icons.push({ rel: "shortcut icon", url: branding.favicon_url });
-    icons.push({ rel: "apple-touch-icon", url: branding.favicon_url });
+  const effectiveFavicon = branding.favicon_url || branding.logo_url;
+  if (effectiveFavicon) {
+    icons.push({ rel: "icon", url: effectiveFavicon });
+    icons.push({ rel: "shortcut icon", url: effectiveFavicon });
+    icons.push({ rel: "apple-touch-icon", url: effectiveFavicon });
   }
 
   return {
@@ -83,9 +86,12 @@ export default async function HomePage({ searchParams }: PageProps) {
   const headerList = await headers();
   const host = headerList.get("host") || "localhost:3000";
 
+  const cookieStore = await cookies();
+  const previewCookie = cookieStore.get("tenant_theme_preview")?.value || null;
+
   const rawPreview =
     resolvedSearchParams.theme_preview || resolvedSearchParams.preview_theme;
-  const previewThemeId = typeof rawPreview === "string" ? rawPreview : null;
+  const previewThemeId = (typeof rawPreview === "string" ? rawPreview : null) || previewCookie;
   const tenantQuery =
     typeof resolvedSearchParams.tenant === "string" ? resolvedSearchParams.tenant : null;
 
@@ -98,8 +104,13 @@ export default async function HomePage({ searchParams }: PageProps) {
   }
 
   // 2. If accessing Root SaaS Platform Domain (localhost:3000 / platform.localhost)
-  // without an explicit tenant override, render the Platform Marketing Portal & Super-Admin Launchpad
-  if ((resolution.isPlatform && !tenantQuery) || resolvedSearchParams.view === "platform") {
+  // without an explicit tenant override and not in preview mode, render the Platform Marketing Portal & Super-Admin Launchpad
+  const isPreviewMode = Boolean(previewThemeId || resolution.isPreview);
+
+  if (
+    (!isPreviewMode && resolution.isPlatform && !tenantQuery) ||
+    resolvedSearchParams.view === "platform"
+  ) {
     return (
       <>
         <SessionRedirect />
@@ -108,7 +119,7 @@ export default async function HomePage({ searchParams }: PageProps) {
     );
   }
 
-  // 3. If accessing a Tenant Subdomain (e.g. apex.localhost:3000) or Custom Domain (or explicit ?tenant=)
+  // 3. If accessing a Tenant Subdomain (e.g. apex.localhost:3000) or Custom Domain (or explicit ?tenant= or ?theme_preview=)
   // render that specific tenant's branded customer storefront
   const { branding, isPreview } = resolution;
 
@@ -120,7 +131,9 @@ export default async function HomePage({ searchParams }: PageProps) {
     branding.active_theme === "sajilo" ||
     branding.active_theme === "modern" ||
     branding.active_theme === "minimal" ||
-    branding.active_theme === "classic";
+    branding.active_theme === "classic" ||
+    branding.active_theme === "adventure" ||
+    branding.active_theme === "urban";
 
   // Fetch live FAQ items for this tenant
   let faqs: import("@/lib/api/dashboard").FAQItem[] = [];
@@ -133,7 +146,8 @@ export default async function HomePage({ searchParams }: PageProps) {
   // Fetch live vehicles for this tenant schema
   let vehicles: Vehicle[] = [];
   try {
-    vehicles = await fetchVehicles(undefined, resolution.hostname);
+    const targetHost = resolution.isPlatform ? "nice.localhost:3000" : resolution.hostname;
+    vehicles = await fetchVehicles(undefined, targetHost);
   } catch {
     vehicles = [];
   }
@@ -160,168 +174,170 @@ export default async function HomePage({ searchParams }: PageProps) {
         } as React.CSSProperties
       }
     >
-      {/* Logged-in staff → skip the marketing homepage, land on the dashboard */}
-      <SessionRedirect />
+      <BrandingProvider branding={branding}>
+        {/* Universal Navigation */}
+        <Navbar branding={branding} />
 
-      {/* Universal Navigation */}
-      <Navbar branding={branding} />
+        {/* Dynamic Theme Hero Section */}
+        <HeroSection branding={branding} />
 
-      {/* Dynamic Theme Hero Section */}
-      <HeroSection branding={branding} />
+        {/* Dynamic Theme Features / Service Standards */}
+        <div id="features">
+          <FeaturesSection branding={branding} />
+        </div>
 
-      {/* Dynamic Theme Features / Service Standards */}
-      <div id="features">
-        <FeaturesSection branding={branding} />
-      </div>
-
-      {/* Two-Sided Platform Gateway: Renter & Host Callouts */}
-      <section className="py-14 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Pathway 1: Renters */}
-          <div
-            className={`relative rounded-2xl p-8 space-y-4 overflow-hidden flex flex-col justify-between transition-all ${
-              isLightMode
-                ? "bg-white border border-slate-200/90 shadow-sm hover:border-[#e11d2e] hover:shadow-md"
-                : "bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border border-white/[0.08] hover:border-[#D4AF37]/50 shadow-xl"
-            }`}
-          >
-            <div className="space-y-3">
-              <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                  isLightMode
-                    ? "bg-red-50 text-[#e11d2e]"
-                    : "bg-white/[0.05] border border-white/[0.1] text-[#D4AF37]"
-                }`}
-              >
-                <Car className="w-5 h-5" />
+        {/* Two-Sided Platform Gateway: Renter & Host Callouts */}
+        <section className="py-14 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Pathway 1: Renters */}
+            <div
+              className={`relative rounded-2xl p-8 space-y-4 overflow-hidden flex flex-col justify-between transition-all ${
+                isLightMode
+                  ? "bg-white border border-slate-200/90 shadow-sm hover:border-[#e11d2e] hover:shadow-md"
+                  : "bg-gradient-to-br from-zinc-950 via-zinc-900 to-black border border-white/[0.08] hover:border-[#D4AF37]/50 shadow-xl"
+              }`}
+            >
+              <div className="space-y-3">
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                    isLightMode
+                      ? "bg-red-50 text-[#e11d2e]"
+                      : "bg-white/[0.05] border border-white/[0.1] text-[#D4AF37]"
+                  }`}
+                >
+                  <Car className="w-5 h-5" />
+                </div>
+                <div>
+                  <span
+                    className={`text-xs uppercase tracking-wider block ${
+                      isLightMode ? "text-[#e11d2e] font-bold" : "text-[#D4AF37] font-mono"
+                    }`}
+                  >
+                    For Travelers &amp; Renters
+                  </span>
+                  <h3
+                    className={`text-2xl font-bold mt-1 ${
+                      isLightMode ? "text-slate-900" : "text-white font-serif"
+                    }`}
+                  >
+                    Verified Fleet with Professional Chauffeur
+                  </h3>
+                  <p
+                    className={`text-xs sm:text-sm mt-2 leading-relaxed ${
+                      isLightMode ? "text-slate-600" : "text-zinc-400 font-light"
+                    }`}
+                  >
+                    Book sedans, 4WD Scorpios, luxury marriage cars, or electric Hiace vans across Kathmandu, Pokhara, Chitwan, and 14+ Nepal cities. Fixed transparent NPR rates with zero hidden charges.
+                  </p>
+                </div>
               </div>
-              <div>
-                <span
-                  className={`text-xs uppercase tracking-wider block ${
-                    isLightMode ? "text-[#e11d2e] font-bold" : "text-[#D4AF37] font-mono"
+              <div className="pt-4">
+                <Link
+                  href="/search"
+                  className={`inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm ${
+                    isLightMode
+                      ? "bg-[#e11d2e] hover:bg-[#b01524] text-white"
+                      : "bg-[#D4AF37] hover:bg-[#e2bd46] text-black"
                   }`}
                 >
-                  For Travelers &amp; Renters
-                </span>
-                <h3
-                  className={`text-2xl font-bold mt-1 ${
-                    isLightMode ? "text-slate-900" : "text-white font-serif"
-                  }`}
-                >
-                  Verified Fleet with Professional Chauffeur
-                </h3>
-                <p
-                  className={`text-xs sm:text-sm mt-2 leading-relaxed ${
-                    isLightMode ? "text-slate-600" : "text-zinc-400 font-light"
-                  }`}
-                >
-                  Book sedans, 4WD Scorpios, luxury marriage cars, or electric Hiace vans across Kathmandu, Pokhara, Chitwan, and 14+ Nepal cities. Fixed transparent NPR rates with zero hidden charges.
-                </p>
+                  <span>Search Available Vehicles</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
             </div>
-            <div className="pt-4">
-              <Link
-                href="/search"
-                className={`inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm ${
-                  isLightMode
-                    ? "bg-[#e11d2e] hover:bg-[#b01524] text-white"
-                    : "bg-[#D4AF37] hover:bg-[#e2bd46] text-black"
-                }`}
-              >
-                <span>Search Available Vehicles</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+
+            {/* Pathway 2: Car Owners (Hosts) */}
+            <div
+              className={`relative rounded-2xl p-8 space-y-4 overflow-hidden flex flex-col justify-between transition-all ${
+                isLightMode
+                  ? "bg-white border border-slate-200/90 shadow-sm hover:border-[#388ddd] hover:shadow-md"
+                  : "bg-gradient-to-br from-amber-500/[0.08] via-zinc-900 to-black border border-[#D4AF37]/30 hover:border-[#D4AF37] shadow-xl"
+              }`}
+            >
+              <div className="space-y-3">
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                    isLightMode
+                      ? "bg-blue-50 text-[#388ddd]"
+                      : "bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37]"
+                  }`}
+                >
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <span
+                    className={`text-xs font-bold uppercase tracking-wider block ${
+                      isLightMode ? "text-[#388ddd]" : "text-emerald-400 font-mono"
+                    }`}
+                  >
+                    For Vehicle Owners &amp; Hosts
+                  </span>
+                  <h3
+                    className={`text-2xl font-bold mt-1 ${
+                      isLightMode ? "text-slate-900" : "text-white font-serif"
+                    }`}
+                  >
+                    List Your Vehicle &amp; Earn in Nepal
+                  </h3>
+                  <p
+                    className={`text-xs sm:text-sm mt-2 leading-relaxed ${
+                      isLightMode ? "text-slate-600" : "text-zinc-400 font-light"
+                    }`}
+                  >
+                    Reach thousands of verified travelers across Nepal, set your own availability, and earn steady monthly revenue with zero self-drive liability and guaranteed 10% advance deposits.
+                  </p>
+                </div>
+              </div>
+              <div className="pt-4">
+                <Link
+                  href="/list-your-car"
+                  className={`inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm ${
+                    isLightMode
+                      ? "bg-slate-900 hover:bg-slate-800 text-white"
+                      : "bg-white/[0.08] hover:bg-[#D4AF37] hover:text-black text-white border border-white/[0.15]"
+                  }`}
+                >
+                  <span>Host Your Vehicle Now</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </div>
           </div>
+        </section>
 
-          {/* Pathway 2: Car Owners (Hosts) */}
-          <div
-            className={`relative rounded-2xl p-8 space-y-4 overflow-hidden flex flex-col justify-between transition-all ${
-              isLightMode
-                ? "bg-white border border-slate-200/90 shadow-sm hover:border-[#388ddd] hover:shadow-md"
-                : "bg-gradient-to-br from-amber-500/[0.08] via-zinc-900 to-black border border-[#D4AF37]/30 hover:border-[#D4AF37] shadow-xl"
-            }`}
-          >
-            <div className="space-y-3">
-              <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                  isLightMode
-                    ? "bg-blue-50 text-[#388ddd]"
-                    : "bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37]"
-                }`}
-              >
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <span
-                  className={`text-xs font-bold uppercase tracking-wider block ${
-                    isLightMode ? "text-[#388ddd]" : "text-emerald-400 font-mono"
-                  }`}
-                >
-                  For Vehicle Owners &amp; Hosts
-                </span>
-                <h3
-                  className={`text-2xl font-bold mt-1 ${
-                    isLightMode ? "text-slate-900" : "text-white font-serif"
-                  }`}
-                >
-                  List Your Vehicle &amp; Earn in Nepal
-                </h3>
-                <p
-                  className={`text-xs sm:text-sm mt-2 leading-relaxed ${
-                    isLightMode ? "text-slate-600" : "text-zinc-400 font-light"
-                  }`}
-                >
-                  Reach thousands of verified travelers across Nepal, set your own availability, and earn steady monthly revenue with zero self-drive liability and guaranteed 10% advance deposits.
-                </p>
-              </div>
-            </div>
-            <div className="pt-4">
-              <Link
-                href="/list-your-car"
-                className={`inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-sm ${
-                  isLightMode
-                    ? "bg-slate-900 hover:bg-slate-800 text-white"
-                    : "bg-white/[0.08] hover:bg-[#D4AF37] hover:text-black text-white border border-white/[0.15]"
-                }`}
-              >
-                <span>Host Your Vehicle Now</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
+        {/* Dynamic Theme Fleet Catalog */}
+        <div id="fleet">
+          <FleetGrid vehicles={vehicles} branding={branding} />
+        </div>
+
+        {/* FAQ Section — live from CMS */}
+        {faqs.length > 0 && (
+          <div id="faq">
+            <FAQSection
+              faqs={faqs}
+              primaryColor={branding.primary_color}
+              isLightMode={isLightMode}
+              supportPhone={branding.support_phone}
+            />
           </div>
-        </div>
-      </section>
+        )}
 
-      {/* Dynamic Theme Fleet Catalog */}
-      <div id="fleet">
-        <FleetGrid vehicles={vehicles} branding={branding} />
-      </div>
+        {/* Dynamic Theme Footer */}
+        <Footer branding={branding} />
 
-      {/* FAQ Section — live from CMS */}
-      {faqs.length > 0 && (
-        <div id="faq">
-          <FAQSection
-            faqs={faqs}
-            primaryColor={branding.primary_color}
-            isLightMode={isLightMode}
-            supportPhone={branding.support_phone}
-          />
-        </div>
-      )}
+        {/* Floating Speed Dial Communication Widget */}
+        <FloatingContactWidget branding={branding} />
 
-      {/* Dynamic Theme Footer */}
-      <Footer branding={branding} />
-
-      {/* Floating Theme Live Preview & Switcher Dock (only rendered during admin preview) */}
-      {isPreview && (
-        <Suspense fallback={null}>
-          <ThemePreviewBanner
-            currentThemeId={branding.active_theme}
-            isPreview={isPreview}
-          />
-        </Suspense>
-      )}
+        {/* Floating Theme Live Preview & Switcher Dock (only rendered during admin preview) */}
+        {isPreview && (
+          <Suspense fallback={null}>
+            <ThemePreviewBanner
+              currentThemeId={branding.active_theme}
+              isPreview={isPreview}
+            />
+          </Suspense>
+        )}
+      </BrandingProvider>
     </div>
   );
 }

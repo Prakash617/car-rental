@@ -7,6 +7,7 @@ import { getThemeDefinition, getThemeHeadingFont } from "@/lib/themes/registry";
 import { Navbar } from "@/components/navigation/Navbar";
 import { BrandingProvider } from "@/lib/context/branding";
 import { ThemePreviewBanner } from "@/components/themes/ThemePreviewBanner";
+import { FloatingContactWidget } from "@/components/navigation/FloatingContactWidget";
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenantHost = await getRequestTenantHost();
@@ -22,10 +23,11 @@ export async function generateMetadata(): Promise<Metadata> {
     "Enterprise multi-tenant automotive hire platform with dynamic theme engine and real-time fleet availability.";
 
   const icons: Metadata["icons"] = [];
-  if (branding.favicon_url) {
-    icons.push({ rel: "icon", url: branding.favicon_url });
-    icons.push({ rel: "shortcut icon", url: branding.favicon_url });
-    icons.push({ rel: "apple-touch-icon", url: branding.favicon_url });
+  const effectiveFavicon = branding.favicon_url || branding.logo_url;
+  if (effectiveFavicon) {
+    icons.push({ rel: "icon", url: effectiveFavicon });
+    icons.push({ rel: "shortcut icon", url: effectiveFavicon });
+    icons.push({ rel: "apple-touch-icon", url: effectiveFavicon });
   }
 
   return {
@@ -63,12 +65,14 @@ export default async function StorefrontLayout({
   const Footer = theme.components.Footer;
   const headingFontClass = getThemeHeadingFont(branding.active_theme);
 
-  // Sajilo, Modern, Minimal, and Classic default to light mode unless an explicitly dark theme (like Luxury) is selected
+  // Sajilo, Modern, Minimal, Classic, Adventure, and Urban default to clean, high-conversion light mode
   const isLightMode =
     branding.active_theme === "sajilo" ||
     branding.active_theme === "modern" ||
     branding.active_theme === "minimal" ||
-    branding.active_theme === "classic";
+    branding.active_theme === "classic" ||
+    branding.active_theme === "adventure" ||
+    branding.active_theme === "urban";
 
   return (
     <div
@@ -96,6 +100,7 @@ export default async function StorefrontLayout({
         <Navbar branding={branding} />
         <main className="flex-1">{children}</main>
         <Footer branding={branding} />
+        <FloatingContactWidget branding={branding} />
 
         {/* Live Theme Preview Sandbox Banner */}
         {isPreview && (
